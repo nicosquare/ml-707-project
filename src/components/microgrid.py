@@ -36,6 +36,15 @@ class Microgrid:
             self.participants[i].architecture['PV'] = 0
             self.participants[i]._pv_ts *= 0
 
+        # Configure DataFrames for visualization
+
+        self.df_operation_cost = pd.DataFrame(columns=['operation_cost'])
+        self.df_sp_cost = pd.DataFrame(columns=['sp_cost'])
+        self.df_prosumers_cost = pd.DataFrame(columns=['prosumers_cost'])
+        self.df_consumers_cost = pd.DataFrame(columns=['consumers_cost'])
+        self.df_coeff_a_t = pd.DataFrame(columns=['coeff_a_t'])
+        self.df_coeff_p_t = pd.DataFrame(columns=['coeff_p_t'])
+
     def get_current_step_obs(self, size_of_slot: int = 24):
         d_t = 0
         sum_e_t = 0
@@ -66,7 +75,7 @@ class Microgrid:
         # Compute c_t
 
         v_h_t = np.mean(v_h)
-        b_h = v_h_t * np.arange(0.25, 2, 0.25)
+        b_h = list(v_h_t * np.arange(0.25, 2, 0.25))
         b_h_t = sample(b_h, k=1)[0]
         alpha_t = 0.02
 
@@ -82,9 +91,20 @@ class Microgrid:
         consumer_cost_t, prosumer_cost_t = self.compute_consumer_prosumer_cost(
             coeff_a_t=coeff_a_t, coeff_p_t=coeff_p_t, demand_list=d_h
         )
-        provider_cost_t = self.service_provider_cost(c_t=c_t, coeff_a_t=coeff_a_t)
+        provider_cost_t = self.service_provider_cost(c_t=c_t, coeff_a_t=coeff_a_t, coeff_p_t=coeff_p_t)
 
-        cost_t = (1-self.alpha-self.beta)*provider_cost_t + self.alpha*consumer_cost_t + self.beta*prosumer_cost_t
+        cost_t = (1 - self.alpha - self.beta) * provider_cost_t
+        cost_t += self.alpha * consumer_cost_t
+        cost_t += self.beta * prosumer_cost_t
+
+        # Store data in DataFrames
+
+        self.df_consumers_cost.loc[len(self.df_consumers_cost)] = consumer_cost_t
+        self.df_prosumers_cost.loc[len(self.df_prosumers_cost)] = prosumer_cost_t
+        self.df_sp_cost.loc[len(self.df_sp_cost)] = provider_cost_t
+        self.df_operation_cost.loc[len(self.df_operation_cost)] = cost_t
+        self.df_coeff_a_t.loc[len(self.df_coeff_a_t)] = coeff_a_t
+        self.df_coeff_p_t.loc[len(self.df_coeff_p_t)] = coeff_p_t
 
         # Advance one step
 
@@ -133,23 +153,55 @@ class Microgrid:
 
         return total_consumer_cost, total_prosumer_cost
 
-    def service_provider_cost(self, c_t: float, coeff_a_t: float):
+    def service_provider_cost(self, c_t: float, coeff_a_t: float, coeff_p_t: float):
 
         sum_a_t = 0
+        sum_p_t = 0
 
         for participant in self.participants:
-
             participant_consumption = participant._load_ts.iloc[self._current_t][0]
             sum_a_t += coeff_a_t * participant_consumption
+            sum_p_t += coeff_p_t * participant_consumption
 
-        return c_t - sum_a_t
+        return c_t + sum_p_t - sum_a_t
 
     def get_current_step(self):
         return self._current_t
 
     def reset_microgrid(self):
-
         self._current_t = 0
+
+    def plot_sp_cost(self):
+        self.df_sp_cost.plot()
+        plt.show()
+
+    def plot_consumers_cost(self):
+        self.df_consumers_cost.plot()
+        plt.show()
+
+    def plot_prosumers_cost(self):
+        self.df_prosumers_cost.plot()
+        plt.show()
+
+    def plot_operation_cost(self):
+        self.df_operation_cost.plot()
+        plt.show()
+
+    def plot_coeff_a_t(self):
+        self.df_coeff_a_t.plot()
+        plt.show()
+
+    def plot_coeff_p_t(self):
+        self.df_coeff_p_t.plot()
+        plt.show()
+
+    def plot_all(self):
+        self.plot_sp_cost()
+        self.plot_consumers_cost()
+        self.plot_prosumers_cost()
+        self.plot_operation_cost()
+        self.plot_coeff_a_t()
+        self.plot_coeff_p_t()
 
 
 if __name__ == '__main__':

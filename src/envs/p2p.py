@@ -2,13 +2,12 @@ import gym
 import numpy as np
 from gym import spaces
 
-from pymgrid import MicrogridGenerator as mg
 from src.components.microgrid import Microgrid
 
 infinity = np.float('inf')
 
 
-class P2PEnv(gym.Env):
+class P2P(gym.Env):
 
     def __init__(self, n_participants: int = 10):
         self._microgrid = Microgrid(n_participants=n_participants)
@@ -47,7 +46,10 @@ class P2PEnv(gym.Env):
                 self.action_tuples.append((i, j))
 
     def _observe(self):
-        return self._microgrid.get_current_step_obs()
+
+        d_t, h_t, c_t, es_t, _ = self._microgrid.get_current_step_obs()
+
+        return d_t, h_t, c_t, es_t
 
     def step(self, action):
 
@@ -60,6 +62,9 @@ class P2PEnv(gym.Env):
         done = self._microgrid.get_current_step() == 24 * 365 - 1
         info = {}
 
+        if done:
+            self.render()
+
         return state, reward, done, info
 
     def reset(self):
@@ -67,4 +72,5 @@ class P2PEnv(gym.Env):
         return self._observe()
 
     def render(self, mode="human"):
-        return
+        self._microgrid.plot_all()
+
