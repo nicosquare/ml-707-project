@@ -1,11 +1,11 @@
 import pymgrid
+import wandb
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+
 from math import floor
-
 from random import sample, random
-
 from pymgrid import MicrogridGenerator as mg
 
 
@@ -51,6 +51,8 @@ class Microgrid:
         es_t = 0
         v_h = []
         d_h = []
+        prosumers_surplus = []
+
 
         for participant in self.participants:
             participant_consumption = participant._load_ts.iloc[self._current_t][0]
@@ -66,13 +68,15 @@ class Microgrid:
 
             # Check surplus constraints
             surplus = participant_generation - participant_consumption
-            es_t += surplus if surplus > 0 else 0
+            surplus = surplus if surplus > 0 else 0
+            prosumers_surplus.append(surplus)
+            es_t += surplus
 
         # Compute the period of the day
 
-        h_t = self._current_t % size_of_slot
+        h_t = self._current_t % size_of_slot + 1
 
-        # Compute c_t
+        # Compute c_t: look at page 8 of the paper to better explanation
 
         v_h_t = np.mean(v_h)
         b_h = list(v_h_t * np.arange(0.25, 2, 0.25))
@@ -81,17 +85,19 @@ class Microgrid:
 
         c_t = alpha_t * sum_e_t + b_h_t * sum_e_t ** 2
 
-        return d_t, h_t, c_t, es_t, d_h
+        return d_t, h_t, c_t, es_t, d_h, prosumers_surplus
 
     def compute_current_step_cost(self, action: tuple):
 
         coeff_a_t, coeff_p_t = action
-        d_t, h_t, c_t, es_t, d_h = self.get_current_step_obs()
+        d_t, h_t, c_t, es_t, d_h, prosumers_surplus = self.get_current_step_obs()
 
         consumer_cost_t, prosumer_cost_t = self.compute_consumer_prosumer_cost(
             coeff_a_t=coeff_a_t, coeff_p_t=coeff_p_t, demand_list=d_h
         )
-        provider_cost_t = self.service_provider_cost(c_t=c_t, coeff_a_t=coeff_a_t, coeff_p_t=coeff_p_t)
+        provider_cost_t = self.service_provider_cost(
+            c_t=c_t, coeff_a_t=coeff_a_t, coeff_p_t=coeff_p_t, prosumers_surplus=prosumers_surplus
+        )
 
         cost_t = (1 - self.alpha - self.beta) * provider_cost_t
         cost_t += self.alpha * consumer_cost_t
@@ -106,11 +112,21 @@ class Microgrid:
         self.df_coeff_a_t.loc[len(self.df_coeff_a_t)] = coeff_a_t
         self.df_coeff_p_t.loc[len(self.df_coeff_p_t)] = coeff_p_t
 
+        wandb.log({
+            "consumer_cost": consumer_cost_t,
+            "prosumer_cost": prosumer_cost_t,
+            "provider_cost": provider_cost_t,
+            "operation_cost": cost_t,
+            "coeff_a_t": consumer_cost_t,
+            "coeff_p_t": coeff_p_t,
+            "utility_cost": c_t,
+        })
+
         # Advance one step
 
         self._current_t += 1
 
-        d_t_next, h_t_next, c_t_next, es_t_next, _ = self.get_current_step_obs()
+        d_t_next, h_t_next, c_t_next, es_t_next, _, _ = self.get_current_step_obs()
 
         return cost_t, d_t_next, h_t_next, c_t_next, es_t_next
 
@@ -129,6 +145,9 @@ class Microgrid:
             if participant.architecture['PV'] == 0:
 
                 a_t = coeff_a_t * participant_consumption
+
+                # Check p.8 of the paper for details
+
                 u_t = self.k * (demand_list[participant_ix] - participant_consumption) ** 2
 
                 total_consumer_cost += u_t + a_t
@@ -153,15 +172,19 @@ class Microgrid:
 
         return total_consumer_cost, total_prosumer_cost
 
-    def service_provider_cost(self, c_t: float, coeff_a_t: float, coeff_p_t: float):
+    def service_provider_cost(self, c_t: float, coeff_a_t: float, coeff_p_t: float, prosumers_surplus: list):
 
         sum_a_t = 0
         sum_p_t = 0
 
+        participant_ix = 0
+
         for participant in self.participants:
             participant_consumption = participant._load_ts.iloc[self._current_t][0]
             sum_a_t += coeff_a_t * participant_consumption
-            sum_p_t += coeff_p_t * participant_consumption
+            sum_p_t += coeff_p_t * prosumers_surplus[participant_ix]
+
+            participant_ix += 1
 
         return c_t + sum_p_t - sum_a_t
 
