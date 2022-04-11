@@ -45,27 +45,27 @@ class Microgrid:
         self.df_coeff_a_t = pd.DataFrame(columns=['coeff_a_t'])
         self.df_coeff_p_t = pd.DataFrame(columns=['coeff_p_t'])
 
-    def get_current_step_obs(self, size_of_slot: int = 24):
-        d_t = 0
-        sum_e_t = 0
-        es_t = 0
-        v_h = []
-        d_h = []
+    def get_current_step_obs(self, size_of_slot: int = 24): #get the states given a fixed time-slot
+        d_t = 0 #cumulated load demand
+        sum_e_t = 0 #total consumed energy
+        es_t = 0 #total surplus energy
+        v_h = [] #rv for the cost
+        d_h = [] #this is needed to compute c/p costs
 
         for participant in self.participants:
             participant_consumption = participant._load_ts.iloc[self._current_t][0]
             participant_generation = participant._pv_ts.iloc[self._current_t][0]
 
-            demand_variation = 0.05 * participant_consumption if random() < 0.5 else -0.05 * participant_consumption
+            demand_variation = 0.05 * participant_consumption if random() < 0.5 else -0.05 * participant_consumption #demand is sometimes more than consumption or less than consumption
             participant_demand = participant_consumption + demand_variation
 
             d_t += participant_demand
             sum_e_t += participant_consumption
             d_h.append(participant_demand)
-            v_h.append(participant_consumption)
+            v_h.append(participant_consumption) #shouldn't we add demand instead?
 
             # Check surplus constraints
-            surplus = participant_generation - participant_consumption
+            surplus = participant_generation - participant_consumption #shouldn't we subtract demand?
             es_t += surplus if surplus > 0 else 0
 
         # Compute the period of the day
@@ -76,7 +76,7 @@ class Microgrid:
 
         v_h_t = np.mean(v_h)
         b_h = list(v_h_t * np.arange(0.25, 2, 0.25))
-        b_h_t = sample(b_h, k=1)[0]
+        b_h_t = sample(b_h, k=1)[0] #return k-length list sampled from b_h
         alpha_t = 0.02
 
         c_t = alpha_t * sum_e_t + b_h_t * sum_e_t ** 2
@@ -119,7 +119,7 @@ class Microgrid:
         total_consumer_cost = 0
         total_prosumer_cost = 0
 
-        participant_ix = 0
+        participant_ix = 0 #???
 
         for participant in self.participants:
 
@@ -131,7 +131,7 @@ class Microgrid:
                 a_t = coeff_a_t * participant_consumption
                 u_t = self.k * (demand_list[participant_ix] - participant_consumption) ** 2
 
-                total_consumer_cost += u_t + a_t
+                total_consumer_cost += u_t + a_t #total cost of all consumers
 
             else:
 
@@ -160,8 +160,8 @@ class Microgrid:
 
         for participant in self.participants:
             participant_consumption = participant._load_ts.iloc[self._current_t][0]
-            sum_a_t += coeff_a_t * participant_consumption
-            sum_p_t += coeff_p_t * participant_consumption
+            sum_a_t += coeff_a_t * participant_consumption #we are also not considering that prosumers might cover their consumption, rather we are selling more energy than prosuemrs need
+            sum_p_t += coeff_p_t * participant_consumption #shouldn't we check that we consider only prosumers' surplus?
 
         return c_t + sum_p_t - sum_a_t
 
