@@ -1,11 +1,20 @@
+import os
 import argparse
 import wandb
 
 from stable_baselines3 import DQN
 from stable_baselines3.common.monitor import Monitor
 from wandb.integration.sb3 import WandbCallback
+from dotenv import load_dotenv
 
 from src.envs.p2p import P2P
+
+# Initialize Wandb for logging purposes
+
+load_dotenv()
+wandb.login(key=str(os.environ.get("WANDB_KEY")))
+
+wandb.init(project="db-dqn-p2p", entity="madog")
 
 """
     Main method definition
@@ -24,7 +33,7 @@ if __name__ == '__main__':
 
     # Parse the parameters
 
-    LEARNING_RATE = float(args.LearningRate) if args.LearningRate else 1e-4
+    LEARNING_RATE = float(args.LearningRate) if args.LearningRate else 1e-3
     MINIBATCH_SIZE = int(args.MiniBatch) if args.MiniBatch else 16
 
     # Configure environment for SB

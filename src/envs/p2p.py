@@ -47,7 +47,7 @@ class P2P(gym.Env):
 
     def _observe(self):
 
-        d_t, h_t, c_t, es_t, _ = self._microgrid.get_current_step_obs()
+        d_t, h_t, c_t, es_t, _, _ = self._microgrid.get_current_step_obs()
 
         return d_t, h_t, c_t, es_t
 
