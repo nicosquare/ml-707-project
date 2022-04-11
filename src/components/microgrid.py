@@ -45,23 +45,14 @@ class Microgrid:
         self.df_coeff_a_t = pd.DataFrame(columns=['coeff_a_t'])
         self.df_coeff_p_t = pd.DataFrame(columns=['coeff_p_t'])
 
-<<<<<<< HEAD
     def get_current_step_obs(self, size_of_slot: int = 24): #get the states given a fixed time-slot
         d_t = 0 #cumulated load demand
         sum_e_t = 0 #total consumed energy
         es_t = 0 #total surplus energy
         v_h = [] #rv for the cost
         d_h = [] #this is needed to compute c/p costs
-=======
-    def get_current_step_obs(self, size_of_slot: int = 24):
-        d_t = 0
-        sum_e_t = 0
-        es_t = 0
-        v_h = []
-        d_h = []
         prosumers_surplus = []
 
->>>>>>> ef6b3772a6c73c547238282f87ce6fb7ff565e28
 
         for participant in self.participants:
             participant_consumption = participant._load_ts.iloc[self._current_t][0]
@@ -76,15 +67,12 @@ class Microgrid:
             v_h.append(participant_consumption) #shouldn't we add demand instead?
 
             # Check surplus constraints
-<<<<<<< HEAD
-            surplus = participant_generation - participant_consumption #shouldn't we subtract demand?
-            es_t += surplus if surplus > 0 else 0
-=======
+
             surplus = participant_generation - participant_consumption
             surplus = surplus if surplus > 0 else 0
             prosumers_surplus.append(surplus)
             es_t += surplus
->>>>>>> ef6b3772a6c73c547238282f87ce6fb7ff565e28
+
 
         # Compute the period of the day
 
@@ -195,15 +183,10 @@ class Microgrid:
 
         for participant in self.participants:
             participant_consumption = participant._load_ts.iloc[self._current_t][0]
-<<<<<<< HEAD
             sum_a_t += coeff_a_t * participant_consumption #we are also not considering that prosumers might cover their consumption, rather we are selling more energy than prosuemrs need
-            sum_p_t += coeff_p_t * participant_consumption #shouldn't we check that we consider only prosumers' surplus?
-=======
-            sum_a_t += coeff_a_t * participant_consumption
-            sum_p_t += coeff_p_t * prosumers_surplus[participant_ix]
+            sum_p_t += coeff_p_t * prosumers_surplus[participant_ix] #shouldn't we check that we consider only prosumers' surplus?
 
             participant_ix += 1
->>>>>>> ef6b3772a6c73c547238282f87ce6fb7ff565e28
 
         return c_t + sum_p_t - sum_a_t
 
