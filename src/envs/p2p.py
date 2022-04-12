@@ -34,7 +34,7 @@ class P2P(gym.Env):
             coeff_p_t => [0.2, ... 1.0]: Possible coefficients
         
         """
-        self.action_space = spaces.Discrete(25)
+        self.action_space = spaces.Discrete(25) #action is actually choosing the index from the list of tuples
 
         # Define the tuples for the actions, we generate all the possible values
 
@@ -59,7 +59,7 @@ class P2P(gym.Env):
 
         state = d_t_next, h_t_next, c_t_next, es_t_next
         reward = -cost_t
-        done = self._microgrid.get_current_step() == 24 * 365 - 1
+        done = self._microgrid.get_current_step() == 24 * 365 - 1 #shouldn't this be -0?
         info = {}
 
         if done:

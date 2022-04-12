@@ -85,7 +85,7 @@ class Microgrid:
         b_h_t = sample(b_h, k=1)[0] #return k-length list sampled from b_h
         alpha_t = 0.02
 
-        c_t = alpha_t * sum_e_t + b_h_t * sum_e_t ** 2
+        c_t = alpha_t * sum_e_t + b_h_t * sum_e_t ** 2 #sp buys all energy from
 
         return d_t, h_t, c_t, es_t, d_h, prosumers_surplus
 
@@ -119,9 +119,9 @@ class Microgrid:
             "prosumer_cost": prosumer_cost_t,
             "provider_cost": provider_cost_t,
             "operation_cost": cost_t,
-            "coeff_a_t": consumer_cost_t,
+            "coeff_a_t": consumer_cost_t, #shouldn't this be coeff_a_t?
             "coeff_p_t": coeff_p_t,
-            "utility_cost": c_t,
+            "utility_cost": c_t, #price to pay to UG
         })
 
         # Advance one step
@@ -130,7 +130,7 @@ class Microgrid:
 
         d_t_next, h_t_next, c_t_next, es_t_next, _, _ = self.get_current_step_obs()
 
-        return cost_t, d_t_next, h_t_next, c_t_next, es_t_next
+        return cost_t, d_t_next, h_t_next, c_t_next, es_t_next #returns cost and next state
 
     def compute_consumer_prosumer_cost(self, coeff_a_t: float, coeff_p_t: float, demand_list: list):
 
@@ -183,7 +183,7 @@ class Microgrid:
 
         for participant in self.participants:
             participant_consumption = participant._load_ts.iloc[self._current_t][0]
-            sum_a_t += coeff_a_t * participant_consumption #we are also not considering that prosumers might cover their consumption, rather we are selling more energy than prosuemrs need
+            sum_a_t += coeff_a_t * participant_consumption #we are also not considering that prosumers might cover their consumption, rather we are selling more energy than prosumers need
             sum_p_t += coeff_p_t * prosumers_surplus[participant_ix] #shouldn't we check that we consider only prosumers' surplus?
 
             participant_ix += 1

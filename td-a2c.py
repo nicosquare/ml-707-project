@@ -59,10 +59,10 @@ class Actor(Module):
 
     def forward(self, state: Tensor) -> Normal:
         means = self.model(state)
-        stds = clamp(self.log_std.exp(), 1e-3, 50)
+        stds = clamp(self.log_std.exp(), 1e-3, 50) #but this doesn't actually change
         dist = Normal(means, stds)
 
-        return dist
+        return dist #returns a tensor drawn from separate normal distributions, where means are the actions 
 
 
 class Critic(Module):
@@ -91,8 +91,8 @@ class A2CAgent:
         self.n_steps = n_steps
 
         # networks
-        obs_dim = env.observation_space.shape[0]
-        action_dim = env.action_space.shape[0]
+        obs_dim = env.observation_space.shape[0] #assuming that this is 4
+        action_dim = env.action_space.shape[0] #assuming this is 2
 
         self.actor = Actor(obs_dim, action_dim, hidden_size).to(device)
         self.critic = Critic(obs_dim, hidden_size).to(device)
@@ -117,7 +117,7 @@ class A2CAgent:
 
     def env_reset(self):
 
-        state, _, _, _ = self.env.reset()
+        state, _, _, _ = self.env.reset() #aren't we taking only d_t as the state
         self.state = torch.tensor(state, device=device)
 
         return state
@@ -129,8 +129,8 @@ class A2CAgent:
 
         # Compute the action
         m = dist
-        action = m.sample()
-        entropy = m.entropy().cpu().detach().numpy()
+        action = m.sample() #sampling from the gaussian
+        entropy = m.entropy().cpu().detach().numpy() #why do we need entropy?
 
         if not self.is_test:
             log_prob = m.log_prob(action)
@@ -177,7 +177,7 @@ class A2CAgent:
     def returns_and_advantages(self, transitions):
         """Returns and advantages."""
 
-        states, log_probs, values, next_states, rewards, dones = list(zip(*transitions))
+        states, log_probs, values, next_states, rewards, dones = list(zip(*transitions)) #list of tuples consisting of states only, next_sytates only, etc. of length n
 
         returns = np.zeros(shape=self.n_steps)
         advantages = np.zeros(shape=self.n_steps)
