@@ -7,18 +7,17 @@ from stable_baselines3.common.monitor import Monitor
 from wandb.integration.sb3 import WandbCallback
 from dotenv import load_dotenv
 
-from src.envs.p2p import P2P
+from p2p import P2P
 
 # Initialize Wandb for logging purposes
 
 load_dotenv()
-wandb.login(key=str(os.environ.get("WANDB_KEY")))
+# wandb.login(key=str(os.environ.get("WANDB_KEY")))
 
-wandb.init(project="db-dqn-p2p", entity="madog")
+wandb.init(project="sb_dqn_p2p", entity="shahdhardan")
 
 """
     Main method definition
-
 """
 
 parser = argparse.ArgumentParser()
@@ -42,14 +41,13 @@ if __name__ == '__main__':
 
     run = wandb.init(
         project='sb_dqn_p2p',
-        entity="madog",
+        entity="shahdhardan",
         sync_tensorboard=True,
         monitor_gym=True,
         save_code=True,
     )
 
-    model_save_path = f"../experiments/sb_dqn_sb/dqn_mg_/{run.id}"
-
+    model_save_path = f"./sb_dqn_sb/dqn_mg_/{run.id}"
     model = DQN(
         policy="MlpPolicy",
         env=env,
@@ -61,7 +59,7 @@ if __name__ == '__main__':
     )
 
     model.learn(
-        total_timesteps=24*365,
+        total_timesteps=24*365+1,
         n_eval_episodes=10,
         log_interval=4,
         callback=WandbCallback(
