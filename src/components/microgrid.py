@@ -102,7 +102,7 @@ class Microgrid:
     def compute_current_step_cost(self, action: tuple):
 
         coeff_a_t, coeff_p_t = action
-        d_t, h_t, c_t, es_t, d_h, prosumers_surplus, prosumers_shortage = self.get_current_step_obs()
+        d_t, h_t, c_t, es_t, p_s, d_h, prosumers_surplus, prosumers_shortage = self.get_current_step_obs()
 
         consumer_cost_t, prosumer_cost_t = self.compute_consumer_prosumer_cost(
             coeff_a_t=coeff_a_t, coeff_p_t=coeff_p_t, demand_list=d_h, prosumers_surplus=prosumers_surplus, prosumers_shortage=prosumers_shortage
