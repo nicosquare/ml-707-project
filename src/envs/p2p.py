@@ -14,12 +14,10 @@ class P2P(gym.Env):
 
         """
             Limits of observation space:
-
             d_t => [0, inf]: Sum of all the prosumers/consumers demand
             h_t => [1, 24]: Period of the day
             c_t => [0, inf]: Service provider cost
             es_t => [0, inf]: Sum of the available surplus of energy
-
         """
         self.observation_space = spaces.Box(
             low=np.float32(np.array([0.0, 1.0, 0.0, 0.0])),
@@ -34,7 +32,7 @@ class P2P(gym.Env):
             coeff_p_t => [0.2, ... 1.0]: Possible coefficients
         
         """
-        self.action_space = spaces.Discrete(25) #action is actually choosing the index from the list of tuples
+        self.action_space = spaces.Discrete(25)
 
         # Define the tuples for the actions, we generate all the possible values
 
@@ -47,7 +45,7 @@ class P2P(gym.Env):
 
     def _observe(self):
 
-        d_t, h_t, c_t, es_t, _, _ = self._microgrid.get_current_step_obs()
+        d_t, h_t, c_t, es_t, _, _, _ = self._microgrid.get_current_step_obs()
 
         return d_t, h_t, c_t, es_t
 
@@ -59,7 +57,7 @@ class P2P(gym.Env):
 
         state = d_t_next, h_t_next, c_t_next, es_t_next
         reward = -cost_t
-        done = self._microgrid.get_current_step() == 24 * 365 - 1 #shouldn't this be -0?
+        done = self._microgrid.get_current_step() == 24 * 365
         info = {}
 
         if done:
@@ -73,4 +71,3 @@ class P2P(gym.Env):
 
     def render(self, mode="human"):
         self._microgrid.plot_all()
-

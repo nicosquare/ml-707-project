@@ -7,14 +7,14 @@ from stable_baselines3.common.monitor import Monitor
 from wandb.integration.sb3 import WandbCallback
 from dotenv import load_dotenv
 
-from p2p import P2P
+from src.envs.p2p import P2P
 
 # Initialize Wandb for logging purposes
 
 load_dotenv()
 # wandb.login(key=str(os.environ.get("WANDB_KEY")))
 
-wandb.init(project="sb_dqn_p2p", entity="shahdhardan")
+wandb.init(project="p2p_price_rl", entity="ryuzaki")
 
 """
     Main method definition
@@ -40,8 +40,8 @@ if __name__ == '__main__':
     env = Monitor(P2P())
 
     run = wandb.init(
-        project='sb_dqn_p2p',
-        entity="shahdhardan",
+        project='p2p_price_rl',
+        entity="ryuzaki",
         sync_tensorboard=True,
         monitor_gym=True,
         save_code=True,
@@ -52,9 +52,9 @@ if __name__ == '__main__':
         policy="MlpPolicy",
         env=env,
         verbose=1,
-        learning_rate=LEARNING_RATE,
-        learning_starts=100,
-        batch_size=MINIBATCH_SIZE,
+        learning_rate=0.0005,
+        learning_starts=1000,
+        batch_size=32,
         device='cpu'
     )
 
