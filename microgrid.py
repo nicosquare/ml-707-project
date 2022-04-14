@@ -37,6 +37,10 @@ class Microgrid:
             self.participants[i].architecture['PV'] = 0
             self.participants[i]._pv_ts *= 0
 
+        for i in range(n_participants):
+            self.participants[i]._pv_ts = ((self.participants[i]._pv_ts- self.participants[i]._pv_ts.min())/self.participants[i]._pv_ts.max())*6
+            self.participants[i]._load_ts = ((self.participants[i]._load_ts- self.participants[i]._load_ts.min())/self.participants[i]._load_ts.max())*6
+
         # Configure DataFrames for visualization
 
         self.df_operation_cost = pd.DataFrame(columns=['operation_cost'])
