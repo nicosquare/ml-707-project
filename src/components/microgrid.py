@@ -40,7 +40,7 @@ class Microgrid:
         for i in range(n_participants):
             self.participants[i]._pv_ts = ((self.participants[i]._pv_ts- self.participants[i]._pv_ts.min())/self.participants[i]._pv_ts.max())*6
             self.participants[i]._load_ts = ((self.participants[i]._load_ts- self.participants[i]._load_ts.min())/self.participants[i]._load_ts.max())*6
-            
+
         # Configure DataFrames for visualization
 
         self.df_operation_cost = pd.DataFrame(columns=['operation_cost'])
@@ -51,9 +51,9 @@ class Microgrid:
         self.df_coeff_p_t = pd.DataFrame(columns=['coeff_p_t'])
 
     def get_current_step_obs(self, size_of_slot: int = 24): #get the states given a fixed time-slot
-        d_t = 0 #cumulated load demand
+        #d_t = 0 #I noticed that we don't need it at all
         sum_e_t = 0 #total consumed energy that sp buys from UG
-        es_t = 0 #total surplus energy
+        #es_t = 0 #total surplus energy
         d_h = [] #this is needed to compute c/p costs
         prosumers_surplus = []
         prosumers_shortage= []
@@ -65,7 +65,7 @@ class Microgrid:
             demand_variation = 0.05 * participant_consumption if random() < 0.5 else -0.05 * participant_consumption #demand is sometimes more than consumption or less than consumption
             participant_demand = participant_consumption + demand_variation
 
-            d_t += participant_demand
+            #d_t += participant_demand
             # sum_e_t += participant_consumption
             d_h.append(participant_demand)
             
@@ -75,7 +75,7 @@ class Microgrid:
                 surplus = participant_generation - participant_consumption
                 if surplus > 0: 
                     prosumers_surplus.append(surplus)
-                    es_t += surplus
+                    #es_t += surplus
                 else: 
                     prosumers_shortage.append(-surplus)
                     sum_e_t+= -surplus
@@ -97,7 +97,7 @@ class Microgrid:
 
         c_t = alpha_t * sum_e_t + b_h_t * sum_e_t ** 2
 
-        return d_t, h_t, c_t, es_t, d_h, prosumers_surplus, prosumers_shortage
+        return np.sum(d_h), h_t, c_t, np.sum(prosumers_surplus), np.sum(prosumers_shortage), d_h, prosumers_surplus, prosumers_shortage
 
     def compute_current_step_cost(self, action: tuple):
 
@@ -138,9 +138,9 @@ class Microgrid:
 
         self._current_t += 1
 
-        d_t_next, h_t_next, c_t_next, es_t_next, _, _, _ = self.get_current_step_obs()
+        d_t_next, h_t_next, c_t_next, es_t_next, p_s_next, _, _, _ = self.get_current_step_obs()
 
-        return cost_t, d_t_next, h_t_next, c_t_next, es_t_next
+        return cost_t, d_t_next, h_t_next, c_t_next, es_t_next, p_s_next
 
     def compute_consumer_prosumer_cost(self, coeff_a_t: float, coeff_p_t: float, demand_list: list, prosumers_surplus: list, prosumers_shortage: list):
 
