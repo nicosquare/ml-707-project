@@ -12,9 +12,9 @@ from src.envs.p2p import P2P
 # Initialize Wandb for logging purposes
 
 load_dotenv()
-# wandb.login(key=str(os.environ.get("WANDB_KEY")))
+wandb.login(key=str(os.environ.get("WANDB_KEY")))
 
-wandb.init(project="p2p_price_rl", entity="ryuzaki")
+wandb.init(project="p2p_price_rl", entity=os.environ.get("WANDB_ENTITY"))
 
 """
     Main method definition

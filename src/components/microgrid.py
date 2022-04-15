@@ -1,5 +1,3 @@
-from unittest.mock import patch
-import pymgrid
 import wandb
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -38,8 +36,10 @@ class Microgrid:
             self.participants[i]._pv_ts *= 0
 
         for i in range(n_participants):
-            self.participants[i]._pv_ts = ((self.participants[i]._pv_ts- self.participants[i]._pv_ts.min())/self.participants[i]._pv_ts.max())*6
-            self.participants[i]._load_ts = ((self.participants[i]._load_ts- self.participants[i]._load_ts.min())/self.participants[i]._load_ts.max())*6
+            self.participants[i]._pv_ts = ((self.participants[i]._pv_ts - self.participants[i]._pv_ts.min()) /
+                                           self.participants[i]._pv_ts.max()) * 6
+            self.participants[i]._load_ts = ((self.participants[i]._load_ts - self.participants[i]._load_ts.min()) /
+                                             self.participants[i]._load_ts.max()) * 6
 
         # Configure DataFrames for visualization
 
@@ -50,65 +50,74 @@ class Microgrid:
         self.df_coeff_a_t = pd.DataFrame(columns=['coeff_a_t'])
         self.df_coeff_p_t = pd.DataFrame(columns=['coeff_p_t'])
 
-    def get_current_step_obs(self, size_of_slot: int = 24): #get the states given a fixed time-slot
-        #d_t = 0 #I noticed that we don't need it at all
-        sum_e_t = 0 #total consumed energy that sp buys from UG
-        #es_t = 0 #total surplus energy
-        d_h = [] #this is needed to compute c/p costs
+    def get_current_step_obs(self, size_of_slot: int = 24):
+        """
+
+        Get the states given a fixed time-slot
+
+        :param size_of_slot: int
+            Size in hours of a time-slot. TODO: Enable different time-slots sizes.
+        :return: list
+            List containing the measurements that form the state.
+        """
+        sum_e_t = 0  # total consumed energy that sp buys from UG
+        d_h = []  # this is needed to compute c/p costs
         prosumers_surplus = []
-        prosumers_shortage= []
+        prosumers_shortage = []
 
         for participant in self.participants:
-            participant_consumption = participant._load_ts.iloc[self._current_t][0]
-            participant_generation = participant._pv_ts.iloc[self._current_t][0]
+            participant_consumption = participant._load_ts.iloc[self.get_current_step()][0]
+            participant_generation = participant._pv_ts.iloc[self.get_current_step()][0]
 
-            demand_variation = 0.05 * participant_consumption if random() < 0.5 else -0.05 * participant_consumption #demand is sometimes more than consumption or less than consumption
+            # Demand is sometimes more than consumption or less than consumption
+
+            demand_variation = 0.05 * participant_consumption if random() < 0.5 else -0.05 * participant_consumption
             participant_demand = participant_consumption + demand_variation
 
-            #d_t += participant_demand
-            # sum_e_t += participant_consumption
             d_h.append(participant_demand)
-            
-            # Check surplus constraints
-        
-            if participant_generation>0: #if this is prosumer
-                surplus = participant_generation - participant_consumption
-                if surplus > 0: 
-                    prosumers_surplus.append(surplus)
-                    #es_t += surplus
-                else: 
-                    prosumers_shortage.append(-surplus)
-                    sum_e_t+= -surplus
-            elif participant_generation==0: 
-                sum_e_t+= participant_consumption
-            #We might also do it as generation - demand
 
+            # Check surplus constraints
+
+            if participant.architecture['PV'] == 1:  # if this is prosumer
+                surplus = participant_generation - participant_consumption
+                if surplus > 0:
+                    prosumers_surplus.append(surplus)
+                    # es_t += surplus
+                else:
+                    prosumers_shortage.append(-surplus)
+                    sum_e_t += -surplus
+            elif participant_generation == 0:
+                sum_e_t += participant_consumption
+            # We might also do it as generation - demand
 
         # Compute the period of the day
 
-        h_t = self._current_t % size_of_slot + 1
+        h_t = self.get_current_step() % size_of_slot + 1
 
         # Compute c_t: look at page 8 of the paper for better explanation
 
         d_h_t = np.mean(d_h)
         b_h = list(d_h_t * np.arange(0.25, 2, 0.25))
-        b_h_t = sample(b_h, k=1)[0] #return k-length list sampled from b_h
+        b_h_t = sample(b_h, k=1)[0]  # return k-length list sampled from b_h
         alpha_t = 0.02
 
         c_t = alpha_t * sum_e_t + b_h_t * sum_e_t ** 2
 
-        return np.sum(d_h), h_t, c_t, np.sum(prosumers_surplus), np.sum(prosumers_shortage), d_h, prosumers_surplus, prosumers_shortage
+        return np.sum(d_h), h_t, c_t, np.sum(prosumers_surplus), np.sum(
+            prosumers_shortage), d_h, prosumers_surplus, prosumers_shortage
 
-    def compute_current_step_cost(self, action: tuple):
+    def compute_current_step_cost(self, action: tuple, logging: bool = True):
 
         coeff_a_t, coeff_p_t = action
         d_t, h_t, c_t, es_t, p_s, d_h, prosumers_surplus, prosumers_shortage = self.get_current_step_obs()
 
         consumer_cost_t, prosumer_cost_t = self.compute_consumer_prosumer_cost(
-            coeff_a_t=coeff_a_t, coeff_p_t=coeff_p_t, demand_list=d_h, prosumers_surplus=prosumers_surplus, prosumers_shortage=prosumers_shortage
+            coeff_a_t=coeff_a_t, coeff_p_t=coeff_p_t, demand_list=d_h, prosumers_surplus=prosumers_surplus,
+            prosumers_shortage=prosumers_shortage
         )
         provider_cost_t = self.service_provider_cost(
-            c_t=c_t, coeff_a_t=coeff_a_t, coeff_p_t=coeff_p_t, prosumers_surplus=prosumers_surplus, prosumers_shortage=prosumers_shortage
+            c_t=c_t, coeff_a_t=coeff_a_t, coeff_p_t=coeff_p_t, prosumers_surplus=prosumers_surplus,
+            prosumers_shortage=prosumers_shortage
         )
 
         cost_t = (1 - self.alpha - self.beta) * provider_cost_t
@@ -124,15 +133,18 @@ class Microgrid:
         self.df_coeff_a_t.loc[len(self.df_coeff_a_t)] = coeff_a_t
         self.df_coeff_p_t.loc[len(self.df_coeff_p_t)] = coeff_p_t
 
-        wandb.log({
-            "consumer_cost": consumer_cost_t,
-            "prosumer_cost": prosumer_cost_t,
-            "provider_cost": provider_cost_t,
-            "operation_cost": cost_t,
-            "coeff_a_t": coeff_a_t,
-            "coeff_p_t": coeff_p_t,
-            "utility_cost": c_t,
-        })
+        if logging:
+
+            wandb.log({
+                "current_t": self._current_t,
+                "consumer_cost": consumer_cost_t,
+                "prosumer_cost": prosumer_cost_t,
+                "provider_cost": provider_cost_t,
+                "operation_cost": cost_t,
+                "coeff_a_t": coeff_a_t,
+                "coeff_p_t": coeff_p_t,
+                "utility_cost": c_t,
+            })
 
         # Advance one step
 
@@ -142,50 +154,39 @@ class Microgrid:
 
         return cost_t, d_t_next, h_t_next, c_t_next, es_t_next, p_s_next
 
-    def compute_consumer_prosumer_cost(self, coeff_a_t: float, coeff_p_t: float, demand_list: list, prosumers_surplus: list, prosumers_shortage: list):
+    def compute_consumer_prosumer_cost(self, coeff_a_t: float, coeff_p_t: float, demand_list: list,
+                                       prosumers_surplus: list, prosumers_shortage: list):
 
         total_consumer_cost = 0
-        prosumer_cost = 0
+        total_prosumer_cost = 0
 
-        participant_ix = 0 #???
+        for participant_ix in range(len(self.participants)):
 
-        for participant in self.participants:
+            participant_consumption = self.participants[participant_ix]._load_ts.iloc[self.get_current_step()][0]
 
-            participant_consumption = participant._load_ts.iloc[self._current_t][0]
-            #participant_generation = participant._pv_ts.iloc[self._current_t][0]
-
-            if participant.architecture['PV'] == 0: #if this is consumer
+            if self.participants[participant_ix].architecture['PV'] == 0:  # if this is consumer
 
                 a_t = coeff_a_t * participant_consumption
 
-                # Check p.8 of the paper for details
-
                 u_t = self.k * (demand_list[participant_ix] - participant_consumption) ** 2
 
-                total_consumer_cost += u_t + a_t #total cost of all consumers in dollars?
+                # Total cost of all consumers in the defined currency
+
+                total_consumer_cost += u_t + a_t
 
             else:
                 u_t = self.k * (demand_list[participant_ix] - participant_consumption) ** 2
-                prosumer_cost += u_t
-
-                # if participant_generation > demand_list[participant_ix]:
-
-                #     p_t = coeff_p_t * np.sum(prosumers_surplus) #he is selling too much, he might run out of energy
-
-                #     prosumer_cost += u_t
-
-                # else:
-
-                #     a_t = coeff_a_t * np.sum(prosumers_shortage)
-                #     u_t = self.k * (demand_list[participant_ix] - participant_consumption) ** 2
-
-                #     prosumer_cost += u_t
+                total_prosumer_cost += u_t
 
             participant_ix += 1
-        total_prosumer_cost = prosumer_cost + coeff_a_t * np.sum(prosumers_shortage) - coeff_p_t * np.sum(prosumers_surplus)
+
+        total_prosumer_cost += coeff_a_t * np.sum(prosumers_shortage)
+        total_prosumer_cost -= coeff_p_t * np.sum(prosumers_surplus)
+
         return total_consumer_cost, total_prosumer_cost
 
-    def service_provider_cost(self, c_t: float, coeff_a_t: float, coeff_p_t: float, prosumers_surplus: list, prosumers_shortage:list):
+    def service_provider_cost(self, c_t: float, coeff_a_t: float, coeff_p_t: float, prosumers_surplus: list,
+                              prosumers_shortage: list):
 
         sum_a_t = 0
         sum_p_t = 0
@@ -193,21 +194,43 @@ class Microgrid:
         # participant_ix = 0
 
         for participant in self.participants:
-            participant_generation = participant._pv_ts.iloc[self._current_t][0]
+            participant_generation = participant._pv_ts.iloc[self.get_current_step()][0]
             if participant_generation == 0:
-                participant_consumption = participant._load_ts.iloc[self._current_t][0]
+                participant_consumption = participant._load_ts.iloc[self.get_current_step()][0]
                 sum_a_t += coeff_a_t * participant_consumption
-        
-        sum_p_t += coeff_p_t * np.sum(prosumers_surplus) 
-        sum_a_t += coeff_a_t * np.sum(prosumers_shortage) 
 
+        sum_p_t += coeff_p_t * np.sum(prosumers_surplus)
+        sum_a_t += coeff_a_t * np.sum(prosumers_shortage)
 
         return c_t + sum_p_t - sum_a_t
 
     def get_current_step(self):
-        return self._current_t
+        """
+            Returns the current time step. Allows running more than one year with the same data.
+        Returns
+        -------
+            self.current_t: int
+                Current microgrid time step
+        """
+        return self._current_t % 8760
 
-    def reset_microgrid(self):
+    def set_current_step(self, time_step: int):
+        """
+            Set the time step to a certain point
+        Parameters
+        ----------
+        time_step: int
+            Value of the time step.
+        """
+        self._current_t = time_step
+
+    def reset_current_step(self):
+        """
+            Resets the current time step.
+        Returns
+        -------
+            None
+        """
         self._current_t = 0
 
     def plot_sp_cost(self):
@@ -241,8 +264,3 @@ class Microgrid:
         self.plot_operation_cost()
         self.plot_coeff_a_t()
         self.plot_coeff_p_t()
-
-
-if __name__ == '__main__':
-    mgrid = Microgrid(n_participants=1)
-    print('adas')
