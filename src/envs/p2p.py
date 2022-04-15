@@ -4,7 +4,7 @@ from gym import spaces
 
 from src.components.microgrid import Microgrid
 
-infinity = np.float('inf')
+inf = np.float64('inf')
 
 
 class P2P(gym.Env):
@@ -22,7 +22,7 @@ class P2P(gym.Env):
         """
         self.observation_space = spaces.Box(
             low=np.float32(np.array([0.0, 1.0, 0.0, 0.0, 0.0])),
-            high=np.float32(np.array([infinity, 24.0, infinity, infinity, infinity])),
+            high=np.float32(np.array([inf, 24.0, inf, inf, inf])),
             dtype=np.float32
         )
 
@@ -93,7 +93,7 @@ class P2PA2C(gym.Env):
         """
         self.observation_space = spaces.Box(
             low=np.float32(np.array([0.0, 1.0, 0.0, 0.0, 0.0])),
-            high=np.float32(np.array([infinity, 24.0, infinity, infinity, infinity])),
+            high=np.float32(np.array([inf, 24.0, inf, inf, inf])),
             dtype=np.float32
         )
 

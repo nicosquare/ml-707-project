@@ -12,13 +12,18 @@ class Microgrid:
 
     def __init__(
             self, n_participants: int, consumer_rate: float = 0.5, alpha: float = 0.333, beta: float = 0.333,
-            k: float = 0.1
+            k: float = 0.1, n_steps_avg: int = 24 * 30
     ):
         self._current_t = 0
         self.participants = []
         self.k = k
         self.beta = beta
         self.alpha = alpha
+        self.n_steps_avg = n_steps_avg
+
+        # Configure accumulator variables
+
+        self.avg_consumer_cost, self.avg_prosumer_cost, self.avg_provider_cost, self.avg_operation_cost = 0, 0, 0, 0
 
         # Randomly generate participants (as microgrids)
 
@@ -124,6 +129,13 @@ class Microgrid:
         cost_t += self.alpha * consumer_cost_t
         cost_t += self.beta * prosumer_cost_t
 
+        # Accumulate the values for averaging
+
+        self.avg_consumer_cost += consumer_cost_t
+        self.avg_prosumer_cost += prosumer_cost_t
+        self.avg_provider_cost += provider_cost_t
+        self.avg_operation_cost += cost_t
+
         # Store data in DataFrames
 
         self.df_consumers_cost.loc[len(self.df_consumers_cost)] = consumer_cost_t
@@ -135,7 +147,7 @@ class Microgrid:
 
         if logging:
 
-            wandb.log({
+            log_dict = {
                 "current_t": self._current_t,
                 "consumer_cost": consumer_cost_t,
                 "prosumer_cost": prosumer_cost_t,
@@ -144,7 +156,32 @@ class Microgrid:
                 "coeff_a_t": coeff_a_t,
                 "coeff_p_t": coeff_p_t,
                 "utility_cost": c_t,
-            })
+            }
+
+            if self._current_t % self.n_steps_avg == 0:
+
+                # Average the costs according to the defined n_steps_avg
+
+                self.avg_consumer_cost /= self.n_steps_avg
+                self.avg_prosumer_cost /= self.n_steps_avg
+                self.avg_provider_cost /= self.n_steps_avg
+                self.avg_operation_cost /= self.n_steps_avg
+
+                # Add averages to the log dictionary
+
+                log_dict["avg_consumer_cost"] = self.avg_consumer_cost
+                log_dict["avg_prosumer_cost"] = self.avg_prosumer_cost
+                log_dict["avg_provider_cost"] = self.avg_provider_cost
+                log_dict["avg_operation_cost"] = self.avg_operation_cost
+
+                # Reset the averages
+
+                self.avg_consumer_cost = 0
+                self.avg_prosumer_cost = 0
+                self.avg_provider_cost = 0
+                self.avg_operation_cost = 0
+
+            wandb.log(log_dict)
 
         # Advance one step
 

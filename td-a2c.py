@@ -16,6 +16,7 @@ import torch.nn.functional as func
 import torch.optim as optim
 
 from typing import Tuple
+from math import floor
 from dotenv import load_dotenv
 from torch import clamp, Tensor
 from torch.distributions import Normal
@@ -173,7 +174,7 @@ class A2CAgent:
             if not self.is_test:
                 self.transitions[-1].extend(value)
 
-            next_state, reward, done = agent.step((coeff_at, coeff_pt))
+            next_state, reward, done = self.step((coeff_at, coeff_pt))
 
             wandb.log({
                 "reward": reward
@@ -184,9 +185,9 @@ class A2CAgent:
                 self.env_reset()
 
         # Update number of steps
-        agent.total_step += self.n_steps
+        self.total_step += self.n_steps
 
-        return agent.transitions
+        return self.transitions
 
     def returns_and_advantages(self, transitions):
         """Returns and advantages."""
@@ -227,12 +228,12 @@ if __name__ == '__main__':
             Define the simulation parameters
         '''
 
-        num_frames = 24 * 30 * 1   # Hours * Days * Months
+        num_frames = 24 * 30 * 12   # Hours * Days * Months
         agent_gamma = 0.99
         agent_entropy_weight = 1e-2
         agent_n_steps = 5
-        agent_learning_rate = 4e-4
-        num_frames_to_test = 24 * 30 * 1  # Hours * Days * Months
+        agent_learning_rate = 1e-4
+        num_updates_to_test = 100
         test_batch = 5
         num_frames_per_trajectory = 24 * 30 * 1  # Hours * Days * Months
 
@@ -250,7 +251,7 @@ if __name__ == '__main__':
                 "n_steps": agent_n_steps,
                 "learning_rate": agent_learning_rate,
                 "batch": test_batch,
-                "num_frames_to_test": num_frames_to_test,
+                "num_updates_to_test": num_updates_to_test,
                 "num_frames_per_trajectory": num_frames_per_trajectory,
             }
         )
@@ -272,6 +273,10 @@ if __name__ == '__main__':
         wandb.define_metric("critic_loss", step_metric='current_t')
         wandb.define_metric("loss", step_metric='current_t')
         wandb.define_metric("test_batch_reward", step_metric='current_t')
+        wandb.define_metric("avg_consumer_cost", step_metric='current_t')
+        wandb.define_metric("avg_prosumer_cost", step_metric='current_t')
+        wandb.define_metric("avg_provider_cost", step_metric='current_t')
+        wandb.define_metric("avg_operation_cost", step_metric='current_t')
 
         '''
             Run the simulator
@@ -331,7 +336,7 @@ if __name__ == '__main__':
 
             # Test policy each 30 days approx. (depends on the test_n_steps value, it should be less than 30).
 
-            if policy_updates % num_frames_to_test == 0:
+            if policy_updates % num_updates_to_test == 0:
                 sc = []
 
                 # Save current time step to continue where it was after testing
