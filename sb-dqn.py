@@ -96,5 +96,5 @@ if __name__ == '__main__':
     )
     #After you run the code, you can see the tensorboard logs by command: tensorboard --logdir log_dir
 
-    
+
     #run.finish()
