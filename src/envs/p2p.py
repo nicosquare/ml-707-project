@@ -59,7 +59,7 @@ class P2P(gym.Env):
 
         state = d_t_next, h_t_next, c_t_next, es_t_next, p_s_next
         reward = -cost_t
-        done = self._microgrid.get_current_step() == 24 * 365
+        done = self._microgrid.get_current_step() == 24 * 365-1
         info = {}
 
         if done:
@@ -72,4 +72,5 @@ class P2P(gym.Env):
         return self._observe()
 
     def render(self, mode="human"):
-        self._microgrid.plot_all()
+        #self._microgrid.plot_all()
+        pass

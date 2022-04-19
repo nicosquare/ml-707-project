@@ -124,15 +124,15 @@ class Microgrid:
         self.df_coeff_a_t.loc[len(self.df_coeff_a_t)] = coeff_a_t
         self.df_coeff_p_t.loc[len(self.df_coeff_p_t)] = coeff_p_t
 
-        wandb.log({
-            "consumer_cost": consumer_cost_t,
-            "prosumer_cost": prosumer_cost_t,
-            "provider_cost": provider_cost_t,
-            "operation_cost": cost_t,
-            "coeff_a_t": coeff_a_t,
-            "coeff_p_t": coeff_p_t,
-            "utility_cost": c_t,
-        })
+        # wandb.log({
+        #     "consumer_cost": consumer_cost_t,
+        #     "prosumer_cost": prosumer_cost_t,
+        #     "provider_cost": provider_cost_t,
+        #     "operation_cost": cost_t,
+        #     "coeff_a_t": coeff_a_t,
+        #     "coeff_p_t": coeff_p_t,
+        #     "utility_cost": c_t,
+        # })
 
         # Advance one step
 
