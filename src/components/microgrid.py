@@ -11,9 +11,10 @@ from pymgrid import MicrogridGenerator as mg
 class Microgrid:
 
     def __init__(
-            self, n_participants: int, consumer_rate: float = 0.5, alpha: float = 0.333, beta: float = 0.333,
+            self, n_participants: int, consumer_rate: float = 0.5, alpha: float = 0.7, beta: float = 0.1,
             k: float = 0.1, n_steps_avg: int = 24 * 30
-    ):
+        ):
+
         self._current_t = 0
         self.participants = []
         self.k = k
@@ -145,28 +146,28 @@ class Microgrid:
         self.df_coeff_a_t.loc[len(self.df_coeff_a_t)] = coeff_a_t
         self.df_coeff_p_t.loc[len(self.df_coeff_p_t)] = coeff_p_t
 
-        # wandb.log({
-        #     "consumer_cost": consumer_cost_t,
-        #     "prosumer_cost": prosumer_cost_t,
-        #     "provider_cost": provider_cost_t,
-        #     "operation_cost": cost_t,
-        #     "coeff_a_t": coeff_a_t,
-        #     "coeff_p_t": coeff_p_t,
-        #     "utility_cost": c_t,
-        # })
+        wandb.log({
+            "consumer_cost": consumer_cost_t,
+            "prosumer_cost": prosumer_cost_t,
+            "provider_cost": provider_cost_t,
+            "operation_cost": cost_t,
+            "coeff_a_t": coeff_a_t,
+            "coeff_p_t": coeff_p_t,
+            "utility_cost": c_t,
+        })
 
-        # if logging:
+        if logging:
 
-        #     log_dict = {
-        #         "current_t": self._current_t,
-        #         "consumer_cost": consumer_cost_t,
-        #         "prosumer_cost": prosumer_cost_t,
-        #         "provider_cost": provider_cost_t,
-        #         "operation_cost": cost_t,
-        #         "coeff_a_t": coeff_a_t,
-        #         "coeff_p_t": coeff_p_t,
-        #         "utility_cost": c_t,
-        #     }
+            log_dict = {
+                "current_t": self._current_t,
+                "consumer_cost": consumer_cost_t,
+                "prosumer_cost": prosumer_cost_t,
+                "provider_cost": provider_cost_t,
+                "operation_cost": cost_t,
+                "coeff_a_t": coeff_a_t,
+                "coeff_p_t": coeff_p_t,
+                "utility_cost": c_t,
+            }
 
         #     if self._current_t % self.n_steps_avg == 0:
 
@@ -191,7 +192,7 @@ class Microgrid:
         #         self.avg_provider_cost = 0
         #         self.avg_operation_cost = 0
 
-        #     wandb.log(log_dict)
+            wandb.log(log_dict)
 
         # Advance one step
 
@@ -304,6 +305,12 @@ class Microgrid:
         self.df_coeff_p_t.plot()
         plt.show()
 
+    def save_all_csv(self):
+        self.merged= pd.concat([self.df_sp_cost, self.df_consumers_cost, self.df_prosumers_cost, self.df_operation_cost, 
+                            self.df_coeff_a_t, self.df_coeff_p_t], axis=1)
+        self.merged.to_csv("/home/shahad.hardan/Documents/ML707/ml-707-project/notebooks/merge_7_1_2.csv")
+        
+
     def plot_all(self):
         self.plot_sp_cost()
         self.plot_consumers_cost()
@@ -311,3 +318,7 @@ class Microgrid:
         self.plot_operation_cost()
         self.plot_coeff_a_t()
         self.plot_coeff_p_t()
+    
+    def save_all(self): 
+        self.save_all_csv()
+        

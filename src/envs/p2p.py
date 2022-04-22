@@ -41,9 +41,6 @@ class P2P(gym.Env):
 
         self.action_tuples = [(a, b) for a in base_list for b in base_list]
 
-        # for i in base_list:
-        #     for j in base_list:
-        #         self.action_tuples.append((i, j))
 
     def _observe(self):
         d_t, h_t, c_t, es_t, p_s, _, _, _ = self._microgrid.get_current_step_obs()
@@ -70,9 +67,9 @@ class P2P(gym.Env):
         return self._observe()
 
     def render(self, mode="human"):
-        #self._microgrid.plot_all()
-        pass
         # self._microgrid.plot_all()
+        self._microgrid.save_all()
+        # pass
 
 
 # class P2PA2C(gym.Env):
