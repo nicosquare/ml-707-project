@@ -1,29 +1,27 @@
-import wandb
-import matplotlib.pyplot as plt
-import pandas as pd
 import numpy as np
 
 from math import floor
 from random import sample, random
 from pymgrid import MicrogridGenerator as mg
 
+from battery import Battery, BatteryParameters
+
 
 class Microgrid:
 
     def __init__(
             self, n_participants: int, consumer_rate: float = 0.5, alpha: float = 0.333, beta: float = 0.333,
-            k: float = 0.1, n_steps_avg: int = 24 * 30
+            k: float = 0.1, battery_params: BatteryParameters = None, batch_size: int = 1
     ):
         self._current_t = 0
         self.participants = []
         self.k = k
         self.beta = beta
         self.alpha = alpha
-        self.n_steps_avg = n_steps_avg
 
-        # Configure accumulator variables
+        # Configure the battery of the community
 
-        self.avg_consumer_cost, self.avg_prosumer_cost, self.avg_provider_cost, self.avg_operation_cost = 0, 0, 0, 0
+        self.battery = Battery(batch_size=batch_size, params=battery_params)
 
         # Randomly generate participants (as microgrids)
 
@@ -45,15 +43,6 @@ class Microgrid:
                                            self.participants[i]._pv_ts.max()) * 6
             self.participants[i]._load_ts = ((self.participants[i]._load_ts - self.participants[i]._load_ts.min()) /
                                              self.participants[i]._load_ts.max()) * 6
-
-        # Configure DataFrames for visualization
-
-        self.df_operation_cost = pd.DataFrame(columns=['operation_cost'])
-        self.df_sp_cost = pd.DataFrame(columns=['sp_cost'])
-        self.df_prosumers_cost = pd.DataFrame(columns=['prosumers_cost'])
-        self.df_consumers_cost = pd.DataFrame(columns=['consumers_cost'])
-        self.df_coeff_a_t = pd.DataFrame(columns=['coeff_a_t'])
-        self.df_coeff_p_t = pd.DataFrame(columns=['coeff_p_t'])
 
     def get_current_step_obs(self, size_of_slot: int = 24):
         """
@@ -111,7 +100,7 @@ class Microgrid:
         return np.sum(d_h), h_t, c_t, np.sum(prosumers_surplus), np.sum(
             prosumers_shortage), d_h, prosumers_surplus, prosumers_shortage
 
-    def compute_current_step_cost(self, action: tuple, logging: bool = True):
+    def compute_current_step_cost(self, action: tuple):
 
         coeff_a_t, coeff_p_t = action
         d_t, h_t, c_t, es_t, p_s, d_h, prosumers_surplus, prosumers_shortage = self.get_current_step_obs()
@@ -128,60 +117,6 @@ class Microgrid:
         cost_t = (1 - self.alpha - self.beta) * provider_cost_t
         cost_t += self.alpha * consumer_cost_t
         cost_t += self.beta * prosumer_cost_t
-
-        # Accumulate the values for averaging
-
-        self.avg_consumer_cost += consumer_cost_t
-        self.avg_prosumer_cost += prosumer_cost_t
-        self.avg_provider_cost += provider_cost_t
-        self.avg_operation_cost += cost_t
-
-        # Store data in DataFrames
-
-        self.df_consumers_cost.loc[len(self.df_consumers_cost)] = consumer_cost_t
-        self.df_prosumers_cost.loc[len(self.df_prosumers_cost)] = prosumer_cost_t
-        self.df_sp_cost.loc[len(self.df_sp_cost)] = provider_cost_t
-        self.df_operation_cost.loc[len(self.df_operation_cost)] = cost_t
-        self.df_coeff_a_t.loc[len(self.df_coeff_a_t)] = coeff_a_t
-        self.df_coeff_p_t.loc[len(self.df_coeff_p_t)] = coeff_p_t
-
-        if logging:
-
-            log_dict = {
-                "current_t": self._current_t,
-                "consumer_cost": consumer_cost_t,
-                "prosumer_cost": prosumer_cost_t,
-                "provider_cost": provider_cost_t,
-                "operation_cost": cost_t,
-                "coeff_a_t": coeff_a_t,
-                "coeff_p_t": coeff_p_t,
-                "utility_cost": c_t,
-            }
-
-            if self._current_t % self.n_steps_avg == 0:
-
-                # Average the costs according to the defined n_steps_avg
-
-                self.avg_consumer_cost /= self.n_steps_avg
-                self.avg_prosumer_cost /= self.n_steps_avg
-                self.avg_provider_cost /= self.n_steps_avg
-                self.avg_operation_cost /= self.n_steps_avg
-
-                # Add averages to the log dictionary
-
-                log_dict["avg_consumer_cost"] = self.avg_consumer_cost
-                log_dict["avg_prosumer_cost"] = self.avg_prosumer_cost
-                log_dict["avg_provider_cost"] = self.avg_provider_cost
-                log_dict["avg_operation_cost"] = self.avg_operation_cost
-
-                # Reset the averages
-
-                self.avg_consumer_cost = 0
-                self.avg_prosumer_cost = 0
-                self.avg_provider_cost = 0
-                self.avg_operation_cost = 0
-
-            wandb.log(log_dict)
 
         # Advance one step
 
@@ -251,16 +186,6 @@ class Microgrid:
         """
         return self._current_t % 8760
 
-    def set_current_step(self, time_step: int):
-        """
-            Set the time step to a certain point
-        Parameters
-        ----------
-        time_step: int
-            Value of the time step.
-        """
-        self._current_t = time_step
-
     def reset_current_step(self):
         """
             Resets the current time step.
@@ -269,35 +194,3 @@ class Microgrid:
             None
         """
         self._current_t = 0
-
-    def plot_sp_cost(self):
-        self.df_sp_cost.plot()
-        plt.show()
-
-    def plot_consumers_cost(self):
-        self.df_consumers_cost.plot()
-        plt.show()
-
-    def plot_prosumers_cost(self):
-        self.df_prosumers_cost.plot()
-        plt.show()
-
-    def plot_operation_cost(self):
-        self.df_operation_cost.plot()
-        plt.show()
-
-    def plot_coeff_a_t(self):
-        self.df_coeff_a_t.plot()
-        plt.show()
-
-    def plot_coeff_p_t(self):
-        self.df_coeff_p_t.plot()
-        plt.show()
-
-    def plot_all(self):
-        self.plot_sp_cost()
-        self.plot_consumers_cost()
-        self.plot_prosumers_cost()
-        self.plot_operation_cost()
-        self.plot_coeff_a_t()
-        self.plot_coeff_p_t()
