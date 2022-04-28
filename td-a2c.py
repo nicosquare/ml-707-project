@@ -9,19 +9,20 @@
 """
 
 import os
-import numpy as np
-import torch
 import wandb
+import torch
+import numpy as np
 import torch.nn.functional as func
 import torch.optim as optim
 
 from typing import Tuple
-from torch import clamp, Tensor
-from torch.nn import ReLU, Tanh, Linear, Parameter, Module, Sequential
-from torch.distributions import Normal
+from math import floor
 from dotenv import load_dotenv
+from torch import clamp, Tensor
+from torch.distributions import Normal
+from torch.nn import ReLU, Linear, Module, Sequential, Sigmoid
 
-from src.envs.p2p import P2P
+from src.envs.p2p import P2PA2C
 
 torch.set_default_dtype(torch.float64)
 
@@ -31,8 +32,6 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 load_dotenv()
 wandb.login(key=str(os.environ.get("WANDB_KEY")))
-
-wandb.init(project="td-a2c-p2p", entity="madog")
 
 
 def set_all_seeds(seed):
@@ -50,19 +49,22 @@ class Actor(Module):
             Linear(num_inputs, hidden_size),
             ReLU(),
             Linear(hidden_size, hidden_size),
-            Tanh(),
-            Linear(hidden_size, num_actions)  # Mu layer
+            Sigmoid(),
+            Linear(hidden_size, num_actions)
         )
 
-        # Works better with parametric std
-        self.log_std = Parameter(torch.zeros(num_actions))
+    def forward(self, state: Tensor) -> (Normal, Normal):
+        mean_at, stdd_at, mean_pt, stdd_pt = self.model(state)
 
-    def forward(self, state: Tensor) -> Normal:
-        means = self.model(state)
-        stds = clamp(self.log_std.exp(), 1e-3, 50) #but this doesn't actually change
-        dist = Normal(means, stds)
+        mean_at = clamp(mean_at, 0.2, 1)
+        stdd_at = clamp(stdd_at, 1e-3, 0.04)
+        mean_pt = clamp(mean_pt, 0.2, 1)
+        stdd_pt = clamp(stdd_pt, 1e-3, 0.04)
 
-        return dist #returns a tensor drawn from separate normal distributions, where means are the actions 
+        dist_at = Normal(mean_at, stdd_at)
+        dist_pt = Normal(mean_pt, stdd_pt)
+
+        return dist_at, dist_pt
 
 
 class Critic(Module):
@@ -83,7 +85,7 @@ class Critic(Module):
 
 class A2CAgent:
 
-    def __init__(self, env, gamma: float, entropy_weight: float, n_steps: int, hidden_size: int = 64):
+    def __init__(self, env, gamma: float, entropy_weight: float, n_steps: int, hidden_size: int = 64, lr: float = 1e-4):
         """Initialize."""
         self.env = env
         self.gamma = gamma
@@ -91,8 +93,8 @@ class A2CAgent:
         self.n_steps = n_steps
 
         # networks
-        obs_dim = env.observation_space.shape[0] #assuming that this is 4
-        action_dim = env.action_space.shape[0] #assuming this is 2
+        obs_dim = env.observation_space.shape[0]
+        action_dim = env.action_space.shape[0]
 
         self.actor = Actor(obs_dim, action_dim, hidden_size).to(device)
         self.critic = Critic(obs_dim, hidden_size).to(device)
@@ -104,7 +106,7 @@ class A2CAgent:
         self.state = None
 
         # optimizer
-        self.optimizer = optim.Adam(self.actor.parameters(), lr=7e-4)
+        self.optimizer = optim.Adam(self.actor.parameters(), lr=lr)
 
         # transition (state, log_prob, next_state, reward, done)
         self.transitions: list = list()
@@ -117,28 +119,39 @@ class A2CAgent:
 
     def env_reset(self):
 
-        state, _, _, _ = self.env.reset() #aren't we taking only d_t as the state
+        state, _, _, _ = self.env.reset()
         self.state = torch.tensor(state, device=device)
 
         return state
 
+    def env_restore(self, time_step: int):
+        self.total_step = time_step
+        self.env.restore(time_step=time_step)
+
     def select_action(self, state):
         """Select an action from the input state."""
 
-        dist = self.actor(state)
+        dist_at, dist_pt = self.actor(state)
 
         # Compute the action
-        m = dist
-        action = m.sample() #sampling from the gaussian
-        entropy = m.entropy().cpu().detach().numpy() #why do we need entropy?
+
+        coeff_at = dist_at.sample()
+        entropy_at = dist_at.entropy().cpu().detach().numpy()
+
+        coeff_pt = dist_pt.sample()
+        entropy_pt = dist_pt.entropy().cpu().detach().numpy()
 
         if not self.is_test:
-            log_prob = m.log_prob(action)
-            self.transitions.append([state, log_prob])
+            log_prob_at = dist_at.log_prob(coeff_at)
+            log_prob_pt = dist_pt.log_prob(coeff_pt)
 
-        return action.cpu().detach().numpy()
+            # The log prob ends being the joint log prob: log(p(a_t,p_t)) = log(p(a_t)) + log(p(p_t))
 
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, np.float64, bool]:
+            self.transitions.append([state, (log_prob_at + log_prob_pt)])
+
+        return coeff_at.cpu().detach().numpy(), coeff_pt.cpu().detach().numpy()
+
+    def step(self, action: tuple) -> Tuple[np.ndarray, np.float64, bool]:
         """Take an action and return the response of the env."""
         next_state, reward, done, _ = self.env.step(action)
 
@@ -155,35 +168,37 @@ class A2CAgent:
 
         for step in range(self.n_steps):
 
-            action = self.select_action(self.state)
+            coeff_at, coeff_pt = self.select_action(self.state)
             value = self.critic(self.state)
 
             if not self.is_test:
                 self.transitions[-1].extend(value)
 
-            next_state, reward, done = agent.step(action)
-            # if reward > 10:
-            #     print('rewerd:', reward)
+            next_state, reward, done = self.step((coeff_at, coeff_pt))
+
+            wandb.log({
+                "reward": reward
+            })
 
             self.state = torch.tensor(next_state, device=device)
             if done:
                 self.env_reset()
 
         # Update number of steps
-        agent.total_step += self.n_steps
+        self.total_step += self.n_steps
 
-        return agent.transitions
+        return self.transitions
 
     def returns_and_advantages(self, transitions):
         """Returns and advantages."""
 
-        states, log_probs, values, next_states, rewards, dones = list(zip(*transitions)) #list of tuples consisting of states only, next_sytates only, etc. of length n
+        states, log_probs, values, next_states, rewards, dones = list(zip(*transitions))
 
         returns = np.zeros(shape=self.n_steps)
         advantages = np.zeros(shape=self.n_steps)
 
         with torch.no_grad():
-            # Compute value for the last timestep
+            # Compute value for the last time-step
             next_state = next_states[-1]
             next_state = torch.tensor(next_state, device=device)
             last_value = self.critic(next_state)
@@ -207,98 +222,159 @@ class A2CAgent:
 
 if __name__ == '__main__':
 
-    test_batch = 10
-    num_frames = 150000
-    test_gamma = 0.99
-    test_entropy_weight = 1e-2
-    test_n_steps = 5
+    try:
 
-    set_all_seeds(420)
+        '''
+            Define the simulation parameters
+        '''
 
-    # Instantiate the environment
+        num_frames = 24 * 30 * 12   # Hours * Days * Months
+        agent_gamma = 0.99
+        agent_entropy_weight = 1e-2
+        agent_n_steps = 5
+        agent_learning_rate = 1e-4
+        num_updates_to_test = 100
+        test_batch = 5
+        num_frames_per_trajectory = 24 * 30 * 1  # Hours * Days * Months
 
-    myEnv = MGSetGenerator()
+        '''
+            Setup all the configurations for Wandb
+        '''
 
-    # Instantiate the agent
-    agent = A2CAgent(myEnv, test_gamma, test_entropy_weight, test_n_steps)
-
-    wandb.config = {
-        "batch": test_batch,
-        "num_frames": num_frames,
-        "gamma": test_gamma,
-        "entropy_weight": test_entropy_weight,
-        "n_steps": test_n_steps,
-    }
-
-    """Train the agent"""
-    agent.is_test = False
-
-    actor_losses, critic_losses, scores = [], [], []
-    agent.env_reset()
-    policy_updates = 0
-
-    while agent.total_step < num_frames:
-
-        agent_transitions = agent.rollout()
-        agent_states, agent_log_probs, agent_values, agent_next_states, agent_rewards, agent_dones = list(
-            zip(*agent_transitions)
+        wandb.init(
+            project="p2p_price_rl_a2c",
+            entity=os.environ.get("WANDB_ENTITY"),
+            config={
+                "num_frames": num_frames,
+                "gamma": agent_gamma,
+                "entropy_weight": agent_entropy_weight,
+                "n_steps": agent_n_steps,
+                "learning_rate": agent_learning_rate,
+                "batch": test_batch,
+                "num_updates_to_test": num_updates_to_test,
+                "num_frames_per_trajectory": num_frames_per_trajectory,
+            }
         )
 
-        agent_returns, agent_advantages = agent.returns_and_advantages(agent_transitions)
+        # Define the custom x-axis metric
+        wandb.define_metric("current_t")
 
-        value_loss = func.mse_loss(torch.stack(agent_values), torch.tensor(agent_returns, device=device))
+        # Define the x-axis for the plots: (avoids an issue with Wandb step autoincrement on each log call)
 
-        policy_loss = -(torch.tensor(agent_advantages, device=device) * torch.stack(agent_log_probs)).mean()
+        wandb.define_metric("consumer_cost", step_metric='current_t')
+        wandb.define_metric("prosumer_cost", step_metric='current_t')
+        wandb.define_metric("provider_cost", step_metric='current_t')
+        wandb.define_metric("operation_cost", step_metric='current_t')
+        wandb.define_metric("coeff_a_t", step_metric='current_t')
+        wandb.define_metric("coeff_p_t", step_metric='current_t')
+        wandb.define_metric("reward", step_metric='current_t')
+        wandb.define_metric("utility_cost", step_metric='current_t')
+        wandb.define_metric("actor_loss", step_metric='current_t')
+        wandb.define_metric("critic_loss", step_metric='current_t')
+        wandb.define_metric("loss", step_metric='current_t')
+        wandb.define_metric("test_batch_reward", step_metric='current_t')
+        wandb.define_metric("avg_consumer_cost", step_metric='current_t')
+        wandb.define_metric("avg_prosumer_cost", step_metric='current_t')
+        wandb.define_metric("avg_provider_cost", step_metric='current_t')
+        wandb.define_metric("avg_operation_cost", step_metric='current_t')
 
-        loss = policy_loss + 0.5 * value_loss
+        '''
+            Run the simulator
+        '''
 
-        # update policy
-        agent.optimizer.zero_grad()
-        loss.backward()
-        agent.optimizer.step()
+        set_all_seeds(420)
 
-        actor_loss, critic_loss = policy_loss.item(), value_loss.item()
+        # Instantiate the environment
 
-        actor_losses.append(actor_loss)
-        critic_losses.append(critic_loss)
+        p2p_env = P2PA2C()
 
-        # Log the losses in Wandb
+        # Instantiate the agent
+        agent = A2CAgent(
+            env=p2p_env, gamma=agent_gamma, entropy_weight=agent_entropy_weight, n_steps=agent_n_steps,
+            lr=agent_learning_rate
+        )
 
-        wandb.log({
-            "actor_loss": actor_loss,
-            "critic_loss": critic_loss,
-            "loss": loss
-        })
+        """Train the agent"""
+        agent.is_test = False
 
-        policy_updates += 1
+        actor_losses, critic_losses, scores = [], [], []
+        agent.env_reset()
+        policy_updates = 0
 
-        if policy_updates % 1000 == 0:
-            sc = []
-            for i in range(test_batch):
-                agent_done = False
-                agent_state = agent.env_reset()
-                agent_rewards = []
+        while agent.total_step < num_frames:
 
-                while not agent_done:
-                    agent_state = torch.tensor(agent_state).to(device)
-                    agent_action = agent.select_action(agent_state)
-                    agen_next_state, agent_reward, agent_done = agent.step(agent_action)
-                    agent_state = agen_next_state
-                    agent_rewards.append(agent_reward)
+            agent_transitions = agent.rollout()
+            agent_states, agent_log_probs, agent_values, agent_next_states, agent_rewards, agent_dones = list(
+                zip(*agent_transitions)
+            )
 
-                    wandb.log({
-                        "action": agent_action,
-                        "reward": agent_reward,
-                    })
+            agent_returns, agent_advantages = agent.returns_and_advantages(agent_transitions)
 
-                sc.append(sum(agent_rewards))
+            value_loss = func.mse_loss(torch.stack(agent_values), torch.tensor(agent_returns, device=device))
 
-            scores.append(sum(sc) / test_batch)
+            policy_loss = -(torch.tensor(agent_advantages, device=device) * torch.stack(agent_log_probs)).mean()
+
+            loss = policy_loss + 0.5 * value_loss
+
+            # update policy
+            agent.optimizer.zero_grad()
+            loss.backward()
+            agent.optimizer.step()
+
+            actor_loss, critic_loss = policy_loss.item(), value_loss.item()
+
+            actor_losses.append(actor_loss)
+            critic_losses.append(critic_loss)
 
             wandb.log({
-                "scores": scores[-1],
+                "actor_loss": actor_loss,
+                "critic_loss": critic_loss,
+                "loss": loss
             })
 
-            agent.env_reset()
+            policy_updates += 1
 
-            print('reward: ', scores[-1], 'AcLoss: ', actor_loss, 'CrLoss: ', critic_loss)
+            # Test policy each 30 days approx. (depends on the test_n_steps value, it should be less than 30).
+
+            if policy_updates % num_updates_to_test == 0:
+                sc = []
+
+                # Save current time step to continue where it was after testing
+
+                training_current_t = agent.total_step
+                agent.env.set_logging(enabled=False)
+
+                for i in range(test_batch):
+
+                    agent_done = False
+                    agent_state = agent.env_reset()
+                    agent_rewards = []
+
+                    for _ in range(num_frames_per_trajectory):
+                        agent_state = torch.tensor(agent_state).to(device)
+                        agent_action = agent.select_action(agent_state)
+                        agen_next_state, agent_reward, agent_done = agent.step(agent_action)
+                        agent_state = agen_next_state
+                        agent_rewards.append(agent_reward)
+
+                    sc.append(sum(agent_rewards))
+
+                scores.append(sum(sc) / test_batch)
+
+                agent.env_reset()
+
+                wandb.log({
+                    "test_batch_reward": scores[-1],
+                })
+
+                # Restore the agent current time step to continue with the training
+
+                agent.env_restore(training_current_t)
+                agent.env.set_logging(enabled=True)
+
+        # Finish Wandb process when finishing
+
+        wandb.finish()
+
+    except KeyboardInterrupt:
+        wandb.finish()
