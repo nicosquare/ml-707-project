@@ -78,8 +78,8 @@ class Microgrid:
                         
                         # We check how much of the surplus can be stored in the battery
 
-                        p_charge, _, _ = self.battery.check_battery_constraints(input_power=Tensor(surplus))
-                        sur_batt += p_charge
+                        p_charge, _, _ = self.battery.check_battery_constraints(input_power=Tensor([surplus]))
+                        sur_batt += p_charge.item()
                         diff = surplus - p_charge.item()
                         sur_sp += diff
                     
@@ -93,8 +93,8 @@ class Microgrid:
 
                         # We check how much of the shortage can be taken from the the battery
 
-                        _, p_discharge, _ = self.battery.check_battery_constraints(input_power=Tensor(surplus))
-                        shortage_batt += p_discharge
+                        _, p_discharge, _ = self.battery.check_battery_constraints(input_power=Tensor([surplus]))
+                        shortage_batt += p_discharge.item()
                         diff = p_discharge.item() - (-surplus)
                         shortage_sp += diff
 
@@ -108,8 +108,8 @@ class Microgrid:
 
                     # We check how much of the shortage can be taken from the the battery
 
-                    _, p_discharge, new_soc = self.battery.check_battery_constraints(input_power=Tensor(participant_demand))
-                    dem_batt += p_discharge
+                    _, p_discharge, new_soc = self.battery.check_battery_constraints(input_power=Tensor([participant_demand]))
+                    dem_batt += p_discharge.item()
                     diff = p_discharge.item() - participant_demand
                     dem_sp += diff
 

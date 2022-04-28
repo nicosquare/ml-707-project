@@ -69,7 +69,7 @@ class Battery:
 
         if params is None:
             params = {
-                'soc_0': 0.0,
+                'soc_0': 0.1,
                 'capacity': 1.0,
                 'soc_max': 0.9,
                 'soc_min': 0.1,

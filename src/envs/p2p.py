@@ -22,7 +22,7 @@ class P2P(gym.Env):
         """
         self.observation_space = spaces.Box(
             low=np.float32(np.array([0.0, 1.0, 0.0])),
-            high=np.float32(np.array([1, 24.0, 1])),
+            high=np.float32(np.array([1.0, 24.0, 1.0])),
             dtype=np.float32
         )
 
@@ -45,7 +45,8 @@ class P2P(gym.Env):
     def normalize(values):
 
         norm = np.linalg.norm(values)
-        values /= norm
+        if norm > 0:
+            values /= norm
 
         return values
 
@@ -56,7 +57,7 @@ class P2P(gym.Env):
 
         # Normalize only the observations related to energy (kWh)
 
-        d_t_next = self.normalize(values=[d_t_next])
+        # d_t_next = self.normalize(values=[d_t_next])
 
         state = soc_next, d_t_next, h_t_next
         reward = -cost_t
@@ -70,8 +71,7 @@ class P2P(gym.Env):
 
     def reset(self):
         self._microgrid.reset_current_step()
-        return (0.1, 0, 1), 0, False, {}
-
+        return [0.1, 0, 1]
     def render(self, mode="human"):
         print('Render to be defined')
 
