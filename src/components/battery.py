@@ -21,8 +21,10 @@ class BatteryParameters(TypedDict):
         efficiency: float
             Value between 0 and 1 representing a one-way efficiency of the battery considering same efficiency for
             charging and discharging (%).
-        cost_cycle: float
-            Cost of completing an energy charging/discharging cycle (currency/kWh).
+        buy_price: float
+            Price for using energy from the battery ($/kWh).
+        sell_price: float
+            Price for injecting energy to the battery (reward to the prosumers).    
     """
     soc_0: float
     capacity: int
@@ -31,7 +33,8 @@ class BatteryParameters(TypedDict):
     p_charge_max: float
     p_discharge_max: float
     efficiency: float
-    cost_cycle: float
+    buy_price: float
+    sell_price: float
 
 
 class Battery:
@@ -56,7 +59,8 @@ class Battery:
                     p_charge_max: float,
                     p_discharge_max: float,
                     efficiency: float,
-                    cost_cycle: float
+                    buy_price: float,
+                    sell_price: float,
                 }
 
         """
@@ -72,7 +76,8 @@ class Battery:
                 'p_charge_max': 0.5,
                 'p_discharge_max': 0.5,
                 'efficiency': 0.9,
-                'cost_cycle': 1.0
+                'buy_price': 0.6,
+                'sell_price': 0.6
             }
 
         # Initialize the class attributes
@@ -85,7 +90,8 @@ class Battery:
         self.p_charge_max = params['p_charge_max']
         self.p_discharge_max = params['p_discharge_max']
         self.efficiency = params['efficiency']
-        self.cost_cycle = params['cost_cycle']
+        self.buy_price = params['buy_price']
+        self.sell_price = params['sell_price']
         self.capacity_to_charge = None
         self.capacity_to_discharge = None
 

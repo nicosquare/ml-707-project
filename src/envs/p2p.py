@@ -16,15 +16,13 @@ class P2P(gym.Env):
 
         """
             Limits of observation space:
-            d_t => [0, inf]: Sum of all the prosumers/consumers demand
+            soc => [0, 1]: State of Charge of the community battery.
+            d_t => [0, 1]: Normalized sum of all the prosumers/consumers demand.
             h_t => [1, 24]: Period of the day
-            c_t => [0, inf]: Service provider cost
-            es_t => [0, inf]: Sum of the available surplus of energy
-            p_s => [0, inf]: Sum of the prosumers' shortage
         """
         self.observation_space = spaces.Box(
-            low=np.float32(np.array([0.0, 1.0, 0.0, 0.0, 0.0])),
-            high=np.float32(np.array([inf, 24.0, inf, inf, inf])),
+            low=np.float32(np.array([0.0, 1.0, 0.0])),
+            high=np.float32(np.array([1, 24.0, 1])),
             dtype=np.float32
         )
 
@@ -43,17 +41,24 @@ class P2P(gym.Env):
 
         self.action_tuples = [(a, b) for a in base_list for b in base_list]
 
-    def _observe(self):
-        d_t, h_t, c_t, es_t, p_s, _, _, _ = self._microgrid.get_current_step_obs()
+    @staticmethod
+    def normalize(values):
 
-        return d_t, h_t, c_t, es_t, p_s
+        norm = np.linalg.norm(values)
+        values /= norm
+
+        return values
 
     def step(self, action):
-        cost_t, d_t_next, h_t_next, c_t_next, es_t_next, p_s_next = self._microgrid.compute_current_step_cost(
+        cost_t, soc_next, d_t_next, h_t_next  = self._microgrid.compute_current_step_cost(
             action=self.action_tuples[action]
         )
 
-        state = d_t_next, h_t_next, c_t_next, es_t_next, p_s_next
+        # Normalize only the observations related to energy (kWh)
+
+        d_t_next = self.normalize(values=[d_t_next])
+
+        state = soc_next, d_t_next, h_t_next
         reward = -cost_t
         done = self._microgrid.get_current_step() == 24 * 365
         info = {}
@@ -65,7 +70,7 @@ class P2P(gym.Env):
 
     def reset(self):
         self._microgrid.reset_current_step()
-        return self._observe()
+        return (0.1, 0, 1), 0, False, {}
 
     def render(self, mode="human"):
         print('Render to be defined')
@@ -84,13 +89,11 @@ class P2PA2C(gym.Env):
             Limits of observation space:
             soc => [0, 1]: State of Charge of the community battery.
             d_t => [0, 1]: Normalized sum of all the prosumers/consumers demand.
-            h_t => [1, 24]: Period of the day.
-            es_t => [0, 1]: Normalized sum of the available surplus of energy.
-            p_s => [0, 1]: Normalized sum of the prosumers' shortage.
+            h_t => [1, 24]: Period of the day
         """
         self.observation_space = spaces.Box(
-            low=np.float32(np.array([0.0, 0.0, 1.0, 0.0, 0.0])),
-            high=np.float32(np.array([1, 1, 24.0, 1, 1])),
+            low=np.float32(np.array([0.0, 0.0, 1.0])),
+            high=np.float32(np.array([1, 1, 24.0])),
             dtype=np.float32
         )
 

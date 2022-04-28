@@ -94,7 +94,7 @@ if __name__ == '__main__':
     # args = parser.parse_args()
 
     model.learn(
-        total_timesteps=24*365,
+        total_timesteps=24*365 + 1,
         n_eval_episodes=10,
         log_interval=4,
         # callback=TensorboardCallback()
