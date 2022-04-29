@@ -59,7 +59,7 @@ class P2P(gym.Env):
 
         # d_t_next = self.normalize(values=[d_t_next])
 
-        state = soc_next, d_t_next, h_t_next
+        state = soc_next, d_t_next/60, h_t_next
         reward = -cost_t
         done = self._microgrid.get_current_step() == 24 * 365
         info = {}
