@@ -21,8 +21,8 @@ class P2P(gym.Env):
             h_t => [1, 24]: Period of the day
         """
         self.observation_space = spaces.Box(
-            low=np.float32(np.array([0.0, 1.0, 0.0])),
-            high=np.float32(np.array([1.0, 24.0, 1.0])),
+            low=np.float32(np.array([0.0, 0.0, 1.0])), #fixing the bounds for observation space
+            high=np.float32(np.array([1.0, 1.0, 24.0])),
             dtype=np.float32
         )
 
