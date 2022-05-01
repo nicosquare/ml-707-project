@@ -186,7 +186,12 @@ class Battery:
             p_discharge
         )
 
-        return p_charge, p_discharge
+        # Return depending on the dimension
+
+        if len(p_charge) > 1 or len(p_discharge) > 1:
+            return p_charge, p_discharge
+        else:
+            return p_charge.item(), p_discharge.item()
 
     def compute_new_soc(self, p_charge: Tensor, p_discharge: Tensor):
         """

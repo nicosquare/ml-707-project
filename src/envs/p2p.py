@@ -23,7 +23,7 @@ class P2P(gym.Env):
             h_t => [1, 24]: Period of the day
         """
         self.observation_space = spaces.Box(
-            low=np.float32(np.array([0.0, 0.0, 1.0])), #fixing the bounds for observation space
+            low=np.float32(np.array([0.0, 0.0, 1.0])),
             high=np.float32(np.array([1.0, 1.0, 24.0])),
             dtype=np.float32
         )
@@ -43,25 +43,21 @@ class P2P(gym.Env):
 
         self.action_tuples = [(a, b) for a in base_list for b in base_list]
 
-    @staticmethod
-    def normalize(values):
-
-        norm = np.linalg.norm(values)
-        if norm > 0:
-            values /= norm
-
-        return values
-
     def step(self, action):
-        cost_t, soc_next, d_t_next, h_t_next = self._microgrid.compute_current_step_cost(
-            action=self.action_tuples[action]
+
+        decoded_action = self.action_tuples[action]
+
+        cost_t, next_state = self._microgrid.compute_current_step_cost(
+            action=Tensor([decoded_action[0], decoded_action[1]])
         )
 
-        # Normalize only the observations related to energy (kWh)
+        # Normalize the new state
+
+        next_state[:, 1] /= 60
 
         # d_t_next = self.normalize(values=[d_t_next])
 
-        state = soc_next, d_t_next/60, h_t_next
+        state = next_state
         reward = -cost_t
         done = self._microgrid.get_current_step() == 24 * 365
         info = {}
@@ -73,7 +69,7 @@ class P2P(gym.Env):
 
     def reset(self):
         self._microgrid.reset_current_step()
-        return [0.1, 0, 1]
+        return Tensor([0.1, 0, 1])
 
     def render(self, mode="human"):
         print('Render to be defined')
