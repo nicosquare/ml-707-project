@@ -48,7 +48,7 @@ class Microgrid:
     def get_current_step_obs(self, coeff_a_t, coeff_p_t, size_of_slot: int = 24):
         """
 
-        Get the states given a fixed time-slot
+        Get the states given a fixed time-slot and action
 
         :param size_of_slot: int
             Size in hours of a time-slot. TODO: Enable different time-slots sizes.
@@ -56,9 +56,9 @@ class Microgrid:
             List containing the measurements that form the state.
         """
         
-        sur_sp = 0
-        sur_batt = 0
-        dem_sp = 0
+        sur_sp = 0 #surplus to be sold to sp
+        sur_batt = 0 #surplus to be sold to the battery
+        dem_sp = 0 
         shortage_sp = 0
         dem_batt = 0
         shortage_batt = 0
@@ -116,8 +116,6 @@ class Microgrid:
                 else:
 
                     dem_sp += participant_demand
-
-            # We might also do it as generation - demand
 
         # Compute the period of the day
 
