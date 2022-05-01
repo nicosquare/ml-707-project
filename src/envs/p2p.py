@@ -1,6 +1,8 @@
 import gym
+import torch
 import numpy as np
 
+from torch import Tensor
 from gym import spaces
 
 from src.components.battery import BatteryParameters
@@ -51,7 +53,7 @@ class P2P(gym.Env):
         return values
 
     def step(self, action):
-        cost_t, soc_next, d_t_next, h_t_next  = self._microgrid.compute_current_step_cost(
+        cost_t, soc_next, d_t_next, h_t_next = self._microgrid.compute_current_step_cost(
             action=self.action_tuples[action]
         )
 
@@ -72,6 +74,7 @@ class P2P(gym.Env):
     def reset(self):
         self._microgrid.reset_current_step()
         return [0.1, 0, 1]
+
     def render(self, mode="human"):
         print('Render to be defined')
 
@@ -83,6 +86,7 @@ class P2PA2C(gym.Env):
             Gym environment to simulate a P2P Microgrid scenario
         """
 
+        self.batch_size = batch_size
         self.mg = Microgrid(n_participants=n_participants, battery_params=battery_params, batch_size=batch_size)
 
         """
@@ -111,33 +115,16 @@ class P2PA2C(gym.Env):
             dtype=np.float32
         )
 
-    @staticmethod
-    def normalize(values):
-
-        norm = np.linalg.norm(values)
-        values /= norm
-
-        return values
-
-    def _observe(self):
-        soc, d_t, h_t, _, es_t, p_s, _, _, _ = self.mg.get_current_step_obs()
-
-        # Normalize only the observations related to energy (kWh)
-
-        d_t, es_t, p_s = self.normalize(values=[d_t, es_t, p_s])
-
-        return soc, d_t, h_t, es_t, p_s
-
     def step(self, action: tuple):
-        cost_t, d_t_next, h_t_next, _, es_t_next, p_s_next = self.mg.compute_current_step_cost(
+        cost_t, next_state = self.mg.compute_current_step_cost(
             action=action
         )
 
-        # Normalize observations
+        # Normalize the new state
 
-        d_t_next, es_t_next, p_s_next = self.normalize(values=[d_t_next, es_t_next, p_s_next])
+        next_state[:, 1] /= 60
 
-        state = d_t_next, h_t_next, es_t_next, p_s_next
+        state = next_state
         reward = -cost_t
         done = False
         info = {}
@@ -145,9 +132,16 @@ class P2PA2C(gym.Env):
         return state, reward, done, info
 
     def reset(self):
+        # Resetting the microgrid
         self.mg.reset_current_step()
-        return self._observe(), 0, False, {}
+        # Building the initial state
+        initial_state = torch.stack((
+            self.mg.battery.initialize_soc(),
+            torch.zeros(self.batch_size),
+            torch.ones(self.batch_size)
+        ), dim=1)
+
+        return initial_state, 0, False, {}
 
     def render(self, mode="human"):
         print('Render to be defined')
-

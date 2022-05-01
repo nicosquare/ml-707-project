@@ -211,7 +211,8 @@ if __name__ == '__main__':
             p_charge_max=0.5,
             p_discharge_max=0.5,
             efficiency=0.9,
-            cost_cycle=0.04,
+            buy_price=0.6,
+            sell_price=0.6,
             capacity=4
         )
 
@@ -221,11 +222,11 @@ if __name__ == '__main__':
 
         n_participants = 10
         batch_size = 10
-        agent_training_steps = 24 * 30 * 6  # Hours * Days * Months
+        agent_training_steps = 10
         agent_gamma = 0.99
-        agent_rollout_steps = 12
-        agent_actor_lr = 1e-4
-        agent_critic_lr = 1e-4
+        agent_rollout_steps = 24 * 30  # Hours * Days
+        agent_actor_lr = 1e-3
+        agent_critic_lr = 1e-3
 
         '''
             Setup all the configurations for Wandb
@@ -235,10 +236,11 @@ if __name__ == '__main__':
             project="p2p_price_rl_a2c",
             entity=os.environ.get("WANDB_ENTITY"),
             config={
+                "n_participants": n_participants,
                 "batch_size": batch_size,
-                "num_frames": agent_training_steps,
+                "training_steps": agent_training_steps,
                 "gamma": agent_gamma,
-                "n_steps": agent_rollout_steps,
+                "rollout_steps": agent_rollout_steps,
                 "agent_actor_lr": agent_actor_lr,
                 "agent_critic_lr": agent_critic_lr,
             }
@@ -270,10 +272,6 @@ if __name__ == '__main__':
         # Launch the training
 
         agent.train(training_steps=agent_training_steps)
-
-        # Save all the data in csv
-
-        mg_env.mg.csv_all()
 
         # Finish the wandb process
 
