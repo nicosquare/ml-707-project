@@ -52,12 +52,10 @@ if __name__ == '__main__':
             super(TensorboardCallback, self).__init__(verbose)
 
         def _on_step(self) -> bool:
-            if (self.num_timesteps % 100 == 0):
+            if (self.num_timesteps % 1000 == 0):
                 self.logger.dump(self.num_timesteps)
                 reward = self.locals['rewards'][0]
                 self.logger.record('reward', reward)
-                # loss = self.locals['train/loss']
-                # self.logger.record('Loss', loss)
             return True
 
 
@@ -77,16 +75,18 @@ if __name__ == '__main__':
     model = DQN(
         policy="MlpPolicy",
         env=env,
-        target_update_interval=10,
+        target_update_interval=1000,
+        buffer_size=2000,
         verbose=1,
         tensorboard_log=log_dir,
-        learning_rate=0.0001,
-        learning_starts=5,
+        learning_rate=0.001,
+        learning_starts=100,
         max_grad_norm = 1,
         tau = 0.9,
-        batch_size=3,
+        batch_size=32,
         device='cuda'
         )
+
         # parser = argparse.ArgumentParser())
 
     # parser.add_argument("-l", "--LearningRate", help="Learning rate of the MLP")
@@ -95,13 +95,13 @@ if __name__ == '__main__':
     # Read arguments from command line
     # args = parser.parse_args()
 
-    new_logger = configure(log_dir, ['csv', 'tensorboard'])
-    model.set_logger(new_logger)
+    # new_logger = configure(log_dir, ['csv', 'tensorboard'])
+    # model.set_logger(new_logger)
 
     model.learn(
-        total_timesteps=24*365 + 1,
-        n_eval_episodes=10,
-        log_interval=4,
+        total_timesteps=24*365*11,
+        n_eval_episodes=50,
+        log_interval=1,
         callback=TensorboardCallback()
         # callback=WandbCallback(
         #     model_save_freq=100,
