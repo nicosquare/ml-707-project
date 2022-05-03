@@ -58,8 +58,10 @@ class Microgrid:
 
         # Scale the load and pv to maintain
 
-        self.load = ((self.load - self.load.min()) / self.load.max()) * self.scaling_multiplier
-        self.pv = ((self.pv - self.pv.min()) / self.pv.max()) * self.scaling_multiplier
+        for i in range(self.n_participants):
+
+            self.load[i] = ((self.load[i] - self.load[i].min()) / self.load[i].max()) * self.scaling_multiplier
+            self.pv[i] = ((self.pv[i] - self.pv[i].min()) / self.pv[i].max()) * self.scaling_multiplier
 
         # Apply the consumer_rate configuration
 
