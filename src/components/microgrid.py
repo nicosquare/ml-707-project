@@ -135,7 +135,6 @@ class Microgrid:
         b_h_t = sample(b_h, k=1)[0]  # return k-length list sampled from b_h
         alpha_t = 0.02
 
-        # c_t = alpha_t * dem_sp + b_h_t * dem_sp ** 2
         c_t = alpha_t * ( dem_sp + shortage_sp) 
 
 
