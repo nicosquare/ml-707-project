@@ -52,7 +52,7 @@ if __name__ == '__main__':
             super(TensorboardCallback, self).__init__(verbose)
 
         def _on_step(self) -> bool:
-            if (self.num_timesteps % 1000 == 0):
+            if (self.num_timesteps % 1 == 0):
                 self.logger.dump(self.num_timesteps)
                 reward = self.locals['rewards'][0]
                 self.logger.record('reward', reward)
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     model = DQN(
         policy="MlpPolicy",
         env=env,
-        target_update_interval=1000,
+        target_update_interval=100,
         buffer_size=2000,
         verbose=1,
         tensorboard_log=log_dir,
@@ -95,11 +95,11 @@ if __name__ == '__main__':
     # Read arguments from command line
     # args = parser.parse_args()
 
-    # new_logger = configure(log_dir, ['csv', 'tensorboard'])
-    # model.set_logger(new_logger)
+    new_logger = configure(log_dir, ['csv', 'tensorboard'])
+    model.set_logger(new_logger)
 
     model.learn(
-        total_timesteps=24*365*11,
+        total_timesteps=20000,
         n_eval_episodes=50,
         log_interval=1,
         callback=TensorboardCallback()
@@ -110,7 +110,29 @@ if __name__ == '__main__':
         #     model_save_path=model_save_path
         # )
     )
+
     #After you run the code, you can see the tensorboard logs by command: tensorboard --logdir log_dir
+
+    # Saving and loading the model 
+
+    # save_dir = "./saved_models/"  #make sure it exists 
+    # model.save(save_dir + "/model_try")
+
+    # loaded_model = DQN.load(save_dir + "/model_alpha_beta", verbose = 1)
+    # print(loaded_model)
+    # loaded_model.set_env(env=P2P)
+    # loaded_model.learn(
+    #     total_timesteps=100000,
+    #     n_eval_episodes=50,
+    #     log_interval=1,
+    #     callback=TensorboardCallback()
+    #     # callback=WandbCallback(
+    #     #     model_save_freq=100,
+    #     #     verbose=1,
+    #     #     gradient_save_freq=10,
+    #     #     model_save_path=model_save_path
+    #     # )
+    # )
 
 
     # run.finish()

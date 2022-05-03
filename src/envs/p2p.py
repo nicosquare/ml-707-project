@@ -72,8 +72,10 @@ class P2P(gym.Env):
     def reset(self):
         self._microgrid.reset_current_step()
         return [0.1, 0, 1]
+
     def render(self, mode="human"):
         print('Render to be defined')
+        # self._microgrid.save_all()
 
 
 class P2PA2C(gym.Env):

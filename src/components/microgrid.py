@@ -1,5 +1,5 @@
 import numpy as np
-
+import pandas as pd
 from torch import Tensor
 from math import floor
 from random import sample, random
@@ -44,6 +44,13 @@ class Microgrid:
                                            self.participants[i]._pv_ts.max()) * 6
             self.participants[i]._load_ts = ((self.participants[i]._load_ts - self.participants[i]._load_ts.min()) /
                                              self.participants[i]._load_ts.max()) * 6
+
+        self.df_operation_cost = pd.DataFrame(columns=['operation_cost'])
+        self.df_sp_cost = pd.DataFrame(columns=['sp_cost'])
+        self.df_prosumers_cost = pd.DataFrame(columns=['prosumers_cost'])
+        self.df_consumers_cost = pd.DataFrame(columns=['consumers_cost'])
+        self.df_coeff_a_t = pd.DataFrame(columns=['coeff_a_t'])
+        self.df_coeff_p_t = pd.DataFrame(columns=['coeff_p_t'])
 
     def get_current_step_obs(self, coeff_a_t, coeff_p_t, size_of_slot: int = 24):
         """
@@ -102,13 +109,13 @@ class Microgrid:
 
                         shortage_sp += (-surplus)
                     
-            elif participant_generation == 0: # if this is consumer
+            elif participant.architecture['PV'] == 0: # if this is consumer
 
                 if coeff_a_t > self.battery.buy_price:
 
                     # We check how much of the shortage can be taken from the the battery
 
-                    _, p_discharge, new_soc = self.battery.check_battery_constraints(input_power=Tensor([participant_demand]))
+                    _, p_discharge, _ = self.battery.check_battery_constraints(input_power=Tensor([participant_demand]))
                     dem_batt += p_discharge.item()
                     diff = p_discharge.item() - participant_demand
                     dem_sp += diff
@@ -128,7 +135,9 @@ class Microgrid:
         b_h_t = sample(b_h, k=1)[0]  # return k-length list sampled from b_h
         alpha_t = 0.02
 
-        c_t = alpha_t * dem_sp + b_h_t * dem_sp ** 2
+        # c_t = alpha_t * dem_sp + b_h_t * dem_sp ** 2
+        c_t = alpha_t * ( dem_sp + shortage_sp) 
+
 
         return self.battery.soc.item(), dem_sp, h_t, dem_batt, sur_sp, sur_batt, shortage_sp, shortage_batt, c_t
 
@@ -147,9 +156,19 @@ class Microgrid:
         cost_t += self.alpha * consumer_cost_t
         cost_t += self.beta * prosumer_cost_t
 
+        self.df_consumers_cost.loc[len(self.df_consumers_cost)] = consumer_cost_t
+        self.df_prosumers_cost.loc[len(self.df_prosumers_cost)] = prosumer_cost_t
+        self.df_sp_cost.loc[len(self.df_sp_cost)] = provider_cost_t
+        self.df_operation_cost.loc[len(self.df_operation_cost)] = cost_t
+        self.df_coeff_a_t.loc[len(self.df_coeff_a_t)] = coeff_a_t
+        self.df_coeff_p_t.loc[len(self.df_coeff_p_t)] = coeff_p_t
+
         # Advance one step
 
         self._current_t += 1
+
+        if self._current_t == 10000:
+            self.save_all_csv()
 
         return cost_t, new_soc, (dem_sp + shortage_sp), h_t
 
@@ -171,3 +190,9 @@ class Microgrid:
             None
         """
         self._current_t = 0
+
+    def save_all_csv(self):
+       self.merged= pd.concat([self.df_sp_cost, self.df_consumers_cost, self.df_prosumers_cost,
+                                     self.df_operation_cost,self.df_coeff_a_t, self.df_coeff_p_t], axis=1)
+       self.merged.to_csv("./notebooks/exp/merge_try_2.csv", index=False)
+

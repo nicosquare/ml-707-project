@@ -70,13 +70,13 @@ class Battery:
         if params is None:
             params = {
                 'soc_0': 0.1,
-                'capacity': 1.0,
+                'capacity': 30.0,
                 'soc_max': 0.9,
                 'soc_min': 0.1,
-                'p_charge_max': 0.5,
-                'p_discharge_max': 0.5,
+                'p_charge_max': 2.0,
+                'p_discharge_max': 2.0,
                 'efficiency': 0.9,
-                'buy_price': 0.6,
+                'buy_price': 0.3,
                 'sell_price': 0.6
             }
 
