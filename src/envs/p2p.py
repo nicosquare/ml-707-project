@@ -7,6 +7,7 @@ from gym import spaces
 
 from src.components.battery import BatteryParameters
 from src.components.microgrid import Microgrid
+from src.utils.tensors import create_zeros_tensor, create_ones_tensor
 
 inf = np.float64('inf')
 
@@ -54,8 +55,6 @@ class P2P(gym.Env):
         # Normalize the new state
 
         next_state[:, 1] /= 60
-
-        # d_t_next = self.normalize(values=[d_t_next])
 
         state = next_state
         reward = -cost_t
@@ -133,8 +132,8 @@ class P2PA2C(gym.Env):
         # Building the initial state
         initial_state = torch.stack((
             self.mg.battery.initialize_soc(),
-            torch.zeros(self.batch_size),
-            torch.ones(self.batch_size)
+            create_zeros_tensor(size=self.batch_size),
+            create_ones_tensor(size=self.batch_size)
         ), dim=1)
 
         return initial_state, 0, False, {}

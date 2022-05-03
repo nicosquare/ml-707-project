@@ -42,7 +42,9 @@ if __name__ == '__main__':
     # MINIBATCH_SIZE = int(args.MiniBatch) if args.MiniBatch else 16
 
     # Monitoring the training
-    log_dir = "./dqn_tensorboard/" #make sure that this folder exists in your local machine
+    log_dir = "./dqn_tensorboard/"  # make sure that this folder exists in your local machine
+
+
     class TensorboardCallback(BaseCallback):
         """
         Custom callback for plotting additional values in tensorboard.
@@ -68,26 +70,25 @@ if __name__ == '__main__':
     #     monitor_gym=True,
     #     save_code=True,
     # )
-    
 
     # model_save_path = f"../experiments/sb_dqn_sb/dqn_mg_/{run.id}"
 
     model = DQN(
         policy="MlpPolicy",
         env=env,
-        target_update_interval=1000,
+        target_update_interval=100,
         buffer_size=2000,
         verbose=1,
         tensorboard_log=log_dir,
         learning_rate=0.001,
         learning_starts=100,
-        max_grad_norm = 1,
-        tau = 0.9,
+        max_grad_norm=1,
+        tau=0.9,
         batch_size=32,
         device='cuda'
-        )
+    )
 
-        # parser = argparse.ArgumentParser())
+    # parser = argparse.ArgumentParser())
 
     # parser.add_argument("-l", "--LearningRate", help="Learning rate of the MLP")
     # parser.add_argument("-m", "--MiniBatch", help="Mini batch size")
@@ -99,7 +100,7 @@ if __name__ == '__main__':
     # model.set_logger(new_logger)
 
     model.learn(
-        total_timesteps=24*365*11,
+        total_timesteps=100000,
         n_eval_episodes=50,
         log_interval=1,
         callback=TensorboardCallback()
@@ -110,7 +111,6 @@ if __name__ == '__main__':
         #     model_save_path=model_save_path
         # )
     )
-    #After you run the code, you can see the tensorboard logs by command: tensorboard --logdir log_dir
-
+    # After you run the code, you can see the tensorboard logs by command: tensorboard --logdir log_dir
 
     # run.finish()

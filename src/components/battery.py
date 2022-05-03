@@ -4,6 +4,11 @@ import numpy as np
 from torch import Tensor
 from typing import TypedDict
 
+from src.utils.tensors import create_zeros_tensor, create_ones_tensor
+
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+torch.set_default_dtype(torch.float64)
+
 
 class BatteryParameters(TypedDict):
     """
@@ -109,9 +114,9 @@ class Battery:
             init_values: Tensor:
                 Tensor with the initialization values.
         """
-        return Tensor([self.soc_0]) if self.batch_size == 1 else Tensor(
+        return (Tensor([self.soc_0]) if self.batch_size == 1 else Tensor(
             [np.random.uniform(low=self.soc_min, high=self.soc_max) for _ in range(self.batch_size)]
-        )
+        )).to(device)
 
     def reset_battery(self):
         """
@@ -132,12 +137,12 @@ class Battery:
         """
         self.capacity_to_charge = torch.maximum(
             (self.soc_max * self.capacity - self.soc * self.capacity) / self.efficiency,
-            torch.zeros(self.batch_size)
+            create_zeros_tensor(size=self.batch_size)
         )
 
         self.capacity_to_discharge = torch.maximum(
             (self.soc * self.capacity - self.soc_min * self.capacity) / self.efficiency,
-            torch.zeros(self.batch_size)
+            create_zeros_tensor(size=self.batch_size)
         )
 
     def check_battery_constraints(self, input_power: Tensor):
@@ -161,8 +166,8 @@ class Battery:
 
         # Initialize the charge and discharge power
 
-        p_charge = torch.maximum(input_power, torch.zeros(self.batch_size))
-        p_discharge = torch.maximum(-input_power, torch.zeros(self.batch_size))
+        p_charge = torch.maximum(input_power, create_zeros_tensor(size=self.batch_size)).to(device)
+        p_discharge = torch.maximum(-input_power, create_zeros_tensor(size=self.batch_size)).to(device)
 
         # Compute the capacities to charge or discharge
 
@@ -170,7 +175,10 @@ class Battery:
 
         # Check battery constraints
 
-        min_charge = torch.minimum(self.capacity_to_charge, torch.ones(self.batch_size) * self.p_charge_max)
+        min_charge = torch.minimum(
+            self.capacity_to_charge,
+            create_ones_tensor(size=self.batch_size) * self.p_charge_max
+        )
 
         p_charge = torch.where(
             p_charge > min_charge,
@@ -178,7 +186,10 @@ class Battery:
             p_charge
         )
 
-        max_discharge = torch.minimum(self.capacity_to_discharge, torch.ones(self.batch_size) * self.p_discharge_max)
+        max_discharge = torch.minimum(
+            self.capacity_to_discharge,
+            create_ones_tensor(size=self.batch_size) * self.p_discharge_max
+        )
 
         p_discharge = torch.where(
             p_discharge > max_discharge,
@@ -186,12 +197,7 @@ class Battery:
             p_discharge
         )
 
-        # Return depending on the dimension
-
-        if len(p_charge) > 1 or len(p_discharge) > 1:
-            return p_charge, p_discharge
-        else:
-            return p_charge.item(), p_discharge.item()
+        return p_charge, p_discharge
 
     def compute_new_soc(self, p_charge: Tensor, p_discharge: Tensor):
         """

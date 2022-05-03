@@ -12,7 +12,7 @@ import wandb
 
 from gym import Env
 from torch import Tensor
-from torch.nn import Module, Sequential, Linear, LeakyReLU
+from torch.nn import Module, Sequential, Linear, LeakyReLU, Tanh
 from torch.optim import Adam
 from torch.distributions import Normal
 from dotenv import load_dotenv
@@ -52,7 +52,7 @@ class Actor(Module):
             Linear(num_inputs, hidden_size),
             LeakyReLU(),
             Linear(hidden_size, hidden_size),
-            LeakyReLU(),
+            Tanh(),
             Linear(hidden_size, num_actions * 2)  # For each continuous action, a mu and a sigma
         )
 
@@ -81,7 +81,7 @@ class Critic(Module):
             Linear(num_inputs, hidden_size),
             LeakyReLU(),
             Linear(hidden_size, hidden_size),
-            LeakyReLU(),
+            Tanh(),
             Linear(hidden_size, 1)
         )
 
@@ -107,8 +107,8 @@ class Agent:
         dim_obs = env.observation_space.shape[0]
         dim_action = env.action_space.shape[0]
 
-        self.actor = Actor(num_inputs=dim_obs, num_actions=dim_action, hidden_size=hidden_size)
-        self.critic = Critic(num_inputs=dim_obs, hidden_size=hidden_size)
+        self.actor = Actor(num_inputs=dim_obs, num_actions=dim_action, hidden_size=hidden_size).to(device)
+        self.critic = Critic(num_inputs=dim_obs, hidden_size=hidden_size).to(device)
 
         self.actor.optimizer = Adam(params=self.actor.parameters(), lr=actor_lr)
         self.critic.optimizer = Adam(params=self.critic.parameters(), lr=critic_lr)
@@ -140,11 +140,12 @@ class Agent:
         for step in range(self.rollout_steps):
             # Start by appending the state to create the states trajectory
 
+            state = state.to(device)
             states.append(state)
 
             # Perform action and pass to next state
 
-            action, log_prob = self.select_action(Tensor(state))
+            action, log_prob = self.select_action(state)
             state, reward, _, _ = self.env.step(action=action)
 
             rewards.append(reward)
@@ -208,12 +209,12 @@ if __name__ == '__main__':
             soc_0=0.1,
             soc_max=0.9,
             soc_min=0.1,
-            p_charge_max=0.5,
-            p_discharge_max=0.5,
+            p_charge_max=2.0,
+            p_discharge_max=2.0,
             efficiency=0.9,
-            buy_price=0.6,
+            buy_price=0.3,
             sell_price=0.6,
-            capacity=4
+            capacity=30
         )
 
         '''
@@ -221,10 +222,10 @@ if __name__ == '__main__':
         '''
 
         n_participants = 10
-        batch_size = 10
-        agent_training_steps = 10
+        batch_size = 50
+        agent_training_steps = 300
         agent_gamma = 0.99
-        agent_rollout_steps = 24 * 30  # Hours * Days
+        agent_rollout_steps = 24 * 365  # Hours * Days
         agent_actor_lr = 1e-3
         agent_critic_lr = 1e-3
 

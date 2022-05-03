@@ -3,17 +3,21 @@ import torch
 
 from torch import Tensor
 from math import floor
-from random import sample, random
 from pymgrid import MicrogridGenerator as mg
 
 from src.components.battery import Battery, BatteryParameters
+from src.utils.tensors import create_zeros_tensor, create_ones_tensor
+
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+torch.set_default_dtype(torch.float64)
 
 
 class Microgrid:
 
     def __init__(
-            self, n_participants: int, consumer_rate: float = 0.5, alpha: float = 0.333, beta: float = 0.333,
-            k: float = 0.1, battery_params: BatteryParameters = None, batch_size: int = 1, scaling_multiplier: int = 6
+        self, n_participants: int, consumer_rate: float = 0.5, alpha: float = 0.333, beta: float = 0.333,
+        k: float = 0.1, battery_params: BatteryParameters = None, batch_size: int = 1, scaling_multiplier: int = 6,
+        coeff_c_t: float = 0.2
     ):
         self._current_t = 0
         self.n_participants = n_participants
@@ -22,6 +26,7 @@ class Microgrid:
         self.alpha = alpha
         self.batch_size = batch_size
         self.scaling_multiplier = scaling_multiplier
+        self.coeff_c_t = coeff_c_t
 
         # Configure the battery of the community
 
@@ -79,19 +84,21 @@ class Microgrid:
             List containing the measurements that form the state.
         """
 
-        sur_sp = torch.zeros(self.batch_size)
-        sur_batt = torch.zeros(self.batch_size)
-        dem_sp = torch.zeros(self.batch_size)
-        shortage_sp = torch.zeros(self.batch_size)
-        dem_batt = torch.zeros(self.batch_size)
-        shortage_batt = torch.zeros(self.batch_size)
+        sur_sp = create_zeros_tensor(size=self.batch_size)
+        sur_batt = create_zeros_tensor(size=self.batch_size)
+        dem_sp = create_zeros_tensor(size=self.batch_size)
+        shortage_sp = create_zeros_tensor(size=self.batch_size)
+        dem_batt = create_zeros_tensor(size=self.batch_size)
+        shortage_batt = create_zeros_tensor(size=self.batch_size)
 
         for p_ix in range(self.n_participants):
 
             # Get the participant step values
 
             participant_demand = self.load[:, self.get_current_step()][p_ix]
+            participant_demand = Tensor([participant_demand]).to(device)
             participant_generation = self.pv[:, self.get_current_step()][p_ix]
+            participant_generation = Tensor([participant_generation]).to(device)
 
             if not self.is_prosumer[p_ix]:  # Is consumer
 
@@ -99,13 +106,16 @@ class Microgrid:
 
                 p_discharge = torch.where(
                     coeff_a_t > self.battery.buy_price,
-                    self.battery.check_battery_constraints(input_power=Tensor([participant_demand]))[1],
-                    0.0
+                    self.battery.check_battery_constraints(input_power=participant_demand)[1],
+                    create_zeros_tensor(size=self.batch_size)
                 )
 
                 # Compute the new SoC
 
-                self.battery.compute_new_soc(p_charge=torch.zeros(self.batch_size), p_discharge=p_discharge)
+                self.battery.compute_new_soc(
+                    p_charge=create_zeros_tensor(size=self.batch_size),
+                    p_discharge=p_discharge
+                )
 
                 # Update the accumulator tensors
 
@@ -123,13 +133,16 @@ class Microgrid:
 
                     p_charge = torch.where(
                         coeff_p_t < self.battery.sell_price,
-                        self.battery.check_battery_constraints(input_power=Tensor([participant_demand]))[0],
-                        0.0
+                        self.battery.check_battery_constraints(input_power=participant_demand)[0],
+                        create_zeros_tensor(size=self.batch_size)
                     )
 
                     # Compute the new SoC
 
-                    self.battery.compute_new_soc(p_charge=p_charge, p_discharge=torch.zeros(self.batch_size))
+                    self.battery.compute_new_soc(
+                        p_charge=p_charge,
+                        p_discharge=create_zeros_tensor(size=self.batch_size)
+                    )
 
                     # Update the accumulator tensors
 
@@ -143,13 +156,16 @@ class Microgrid:
 
                     p_discharge = torch.where(
                         coeff_a_t > self.battery.buy_price,
-                        self.battery.check_battery_constraints(input_power=Tensor([participant_demand]))[1],
-                        0.0
+                        self.battery.check_battery_constraints(input_power=participant_demand)[1],
+                        create_zeros_tensor(size=self.batch_size)
                     )
 
                     # Compute the new SoC
 
-                    self.battery.compute_new_soc(p_charge=torch.zeros(self.batch_size), p_discharge=p_discharge)
+                    self.battery.compute_new_soc(
+                        p_charge=create_zeros_tensor(size=self.batch_size),
+                        p_discharge=p_discharge
+                    )
 
                     # Update the accumulator tensors
 
@@ -161,14 +177,9 @@ class Microgrid:
 
         h_t = self.get_current_step() % size_of_slot + 1
 
-        # Compute c_t: look at page 8 of the paper for better explanation
+        # Compute c_t
 
-        d_h_t = dem_sp + shortage_sp / self.n_participants
-        b_h = Tensor(np.tile(np.arange(0.25, 2, 0.25), (self.batch_size, 1))) * d_h_t.reshape(self.batch_size, 1)
-        b_h_t = Tensor([sample(a.numpy().tolist(), k=1)[0] for a in b_h])  # return k-length list sampled from b_h
-        alpha_t = 0.02
-
-        c_t = alpha_t * dem_sp + b_h_t * dem_sp ** 2
+        c_t = self.coeff_c_t * dem_sp
 
         return self.battery.soc, dem_sp, h_t, dem_batt, sur_sp, sur_batt, shortage_sp, shortage_batt, c_t
 
@@ -194,7 +205,7 @@ class Microgrid:
         next_state = torch.stack((
             new_soc,
             (dem_sp + shortage_sp),
-            torch.ones(self.batch_size) * h_t
+            create_ones_tensor(size=self.batch_size) * h_t
         ), dim=1)
 
         # Advance one step
