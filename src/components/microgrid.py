@@ -193,5 +193,5 @@ class Microgrid:
     def save_all_csv(self):
        self.merged= pd.concat([self.df_sp_cost, self.df_consumers_cost, self.df_prosumers_cost,
                                      self.df_operation_cost,self.df_coeff_a_t, self.df_coeff_p_t], axis=1)
-       self.merged.to_csv("./notebooks/exp/merge_try_2.csv", index=False)
+       self.merged.to_csv("./notebooks/exp/merge_3_3_3.csv", index=False)
 

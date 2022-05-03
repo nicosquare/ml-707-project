@@ -75,8 +75,6 @@ class P2P(gym.Env):
 
     def render(self, mode="human"):
         print('Render to be defined')
-        # self._microgrid.save_all()
-
 
 class P2PA2C(gym.Env):
 

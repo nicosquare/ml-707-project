@@ -99,7 +99,7 @@ if __name__ == '__main__':
     model.set_logger(new_logger)
 
     model.learn(
-        total_timesteps=20000,
+        total_timesteps=100000,
         n_eval_episodes=50,
         log_interval=1,
         callback=TensorboardCallback()
@@ -115,8 +115,8 @@ if __name__ == '__main__':
 
     # Saving and loading the model 
 
-    # save_dir = "./saved_models/"  #make sure it exists 
-    # model.save(save_dir + "/model_try")
+    save_dir = "./saved_models/"  #make sure it exists 
+    model.save(save_dir + "/model_3_3_3")
 
     # loaded_model = DQN.load(save_dir + "/model_alpha_beta", verbose = 1)
     # print(loaded_model)
